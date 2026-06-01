@@ -1,0 +1,513 @@
+#!/bin/sh
+#
+# darpan — bootstrap and run a local Darpan development stack.
+#
+# Generalizes dev-stack.sh into a portable CLI suitable for Homebrew
+# distribution: it clones the backend framework, the Darpan backend
+# components, and the UI into a workspace, loads setup data, and starts
+# both processes with the JDK 21 runtime flags that Spark/Moqui 4 require.
+#
+# POSIX sh only — no bash-isms (no arrays, no [[ ]], no local).
+
+set -eu
+
+DARPAN_CLI_VERSION="0.1.0-dev"
+
+# --------------------------------------------------------------------------
+# Repository manifest.
+#
+# Format per line:  kind|name|url|ref
+#   kind = backend   -> Moqui framework, cloned as the workspace's darpan-backend
+#          component -> cloned under darpan-backend/runtime/component/<name>
+#          ui        -> cloned as a sibling of darpan-backend
+#   ref  = branch or tag to check out. Pin to a release tag for reproducible
+#          installs; main/master tracks latest. Override any ref with an env
+#          var named DARPAN_REF_<NAME-UPPERCASED-WITH-UNDERSCORES>, e.g.
+#          DARPAN_REF_DARPAN=2.0.0  or  DARPAN_REF_DARPAN_UI=2.0.0
+# --------------------------------------------------------------------------
+REPO_MANIFEST='backend|darpan-backend|https://github.com/moqui/moqui-framework.git|master
+component|moqui-sftp|https://github.com/moqui/moqui-sftp.git|master
+component|darpan|https://github.com/drpn-ai/darpan.git|main
+component|shopify-darpan|https://github.com/drpn-ai/shopify-darpan.git|main
+component|netsuite-darpan|https://github.com/drpn-ai/netsuite-darpan.git|main
+component|darpan-hotwax|https://github.com/drpn-ai/darpan-hotwax.git|main
+ui|darpan-ui|https://github.com/drpn-ai/darpan-ui.git|main'
+
+REQUIRED_JDK_MAJOR=21
+REQUIRED_NODE_MAJOR=20
+BACKEND_PORT="${DARPAN_BACKEND_PORT:-8080}"
+FRONTEND_PORT="${DARPAN_FRONTEND_PORT:-5173}"
+LOADED_SENTINEL=".darpan-cli-loaded"
+
+# --------------------------------------------------------------------------
+# Output helpers
+# --------------------------------------------------------------------------
+if [ -t 2 ]; then
+  C_RED=$(printf '\033[31m'); C_YEL=$(printf '\033[33m')
+  C_GRN=$(printf '\033[32m'); C_DIM=$(printf '\033[2m'); C_OFF=$(printf '\033[0m')
+else
+  C_RED=''; C_YEL=''; C_GRN=''; C_DIM=''; C_OFF=''
+fi
+
+info() { printf '%s==>%s %s\n' "$C_GRN" "$C_OFF" "$*" >&2; }
+step() { printf '%s  ->%s %s\n' "$C_DIM" "$C_OFF" "$*" >&2; }
+warn() { printf '%swarning:%s %s\n' "$C_YEL" "$C_OFF" "$*" >&2; }
+err()  { printf '%serror:%s %s\n' "$C_RED" "$C_OFF" "$*" >&2; }
+die()  { err "$@"; exit 1; }
+
+# --------------------------------------------------------------------------
+# JDK 21 resolution. Sets JAVA_HOME and prepends its bin to PATH.
+# Tries, in order: $DARPAN_JAVA_HOME, a 21 $JAVA_HOME, macOS java_home,
+# Homebrew openjdk@21, then `java` already on PATH.
+# --------------------------------------------------------------------------
+java_major_of() {
+  # $1 = path to a java binary
+  "$1" -version 2>&1 | head -1 | awk -F'"' '{print $2}' | cut -d. -f1
+}
+
+# Real java.home for a given java binary (resolves jenv/asdf/sdkman shims).
+java_home_of() {
+  "$1" -XshowSettings:properties -version 2>&1 \
+    | awk -F'= ' '/[ ]*java.home/{print $2; exit}'
+}
+
+# True iff <dir>/bin/java exists and is exactly the required major version.
+# NOTE: do not trust `/usr/libexec/java_home -v 21` exit status alone — on
+# macOS it falls back to the closest available JDK (e.g. 11) and exits 0.
+is_jdk_major() {
+  [ -n "$1" ] && [ -x "$1/bin/java" ] && \
+    [ "$(java_major_of "$1/bin/java")" = "$REQUIRED_JDK_MAJOR" ]
+}
+
+resolve_jdk21() {
+  if [ "${DARPAN_SKIP_JDK_CHECK:-0}" = "1" ]; then
+    warn "DARPAN_SKIP_JDK_CHECK=1 — not verifying JDK 21"
+    return 0
+  fi
+
+  candidate=""
+
+  # 1. explicit override
+  if [ -z "$candidate" ] && is_jdk_major "${DARPAN_JAVA_HOME:-}"; then
+    candidate="$DARPAN_JAVA_HOME"
+  fi
+
+  # 2. an already-correct JAVA_HOME
+  if [ -z "$candidate" ] && is_jdk_major "${JAVA_HOME:-}"; then
+    candidate="$JAVA_HOME"
+  fi
+
+  # 3. macOS java_home — VALIDATE the result (the -v filter is not exact)
+  if [ -z "$candidate" ] && [ -x /usr/libexec/java_home ]; then
+    jh="$(/usr/libexec/java_home -v "$REQUIRED_JDK_MAJOR" 2>/dev/null || true)"
+    is_jdk_major "$jh" && candidate="$jh"
+  fi
+
+  # 4. Homebrew openjdk@21 (keg-only)
+  if [ -z "$candidate" ] && command -v brew >/dev/null 2>&1 && \
+     brew --prefix openjdk@"$REQUIRED_JDK_MAJOR" >/dev/null 2>&1; then
+    bp="$(brew --prefix openjdk@"$REQUIRED_JDK_MAJOR")"
+    if is_jdk_major "${bp}/libexec/openjdk.jdk/Contents/Home"; then
+      candidate="${bp}/libexec/openjdk.jdk/Contents/Home"
+    elif is_jdk_major "$bp"; then
+      candidate="$bp"
+    fi
+  fi
+
+  # 5. whatever `java` resolves to (handles jenv/asdf/sdkman shims)
+  if [ -z "$candidate" ] && command -v java >/dev/null 2>&1; then
+    jbin="$(command -v java)"
+    if [ "$(java_major_of "$jbin")" = "$REQUIRED_JDK_MAJOR" ]; then
+      jh="$(java_home_of "$jbin")"
+      is_jdk_major "$jh" && candidate="$jh"
+    fi
+  fi
+
+  if [ -z "$candidate" ]; then
+    err "JDK $REQUIRED_JDK_MAJOR is required (Moqui 4 / Spark 3.5 / Drools-MVEL 2.5) but was not found."
+    err "  Install it:  brew install --cask temurin@$REQUIRED_JDK_MAJOR"
+    err "  Then re-run, or point at it:  DARPAN_JAVA_HOME=/path/to/jdk21 darpan up"
+    err "  Bypass (not recommended):  DARPAN_SKIP_JDK_CHECK=1 darpan up"
+    return 1
+  fi
+
+  JAVA_HOME="$candidate"
+  export JAVA_HOME
+  PATH="${JAVA_HOME}/bin:${PATH}"
+  export PATH
+  return 0
+}
+
+# --------------------------------------------------------------------------
+# JVM runtime flags. Mirrors dev-stack.sh / docker entrypoint: the canonical
+# Spark 3.5 JDK 17+/21 --add-opens set plus agent/native-access flags. Without
+# these Spark SQL fails at SparkContext init on sun.nio.ch.DirectBuffer.
+# --------------------------------------------------------------------------
+export_jvm_flags() {
+  JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:+$JAVA_TOOL_OPTIONS }\
+--add-opens=java.base/java.lang=ALL-UNNAMED \
+--add-opens=java.base/java.lang.invoke=ALL-UNNAMED \
+--add-opens=java.base/java.lang.reflect=ALL-UNNAMED \
+--add-opens=java.base/java.io=ALL-UNNAMED \
+--add-opens=java.base/java.net=ALL-UNNAMED \
+--add-opens=java.base/java.nio=ALL-UNNAMED \
+--add-opens=java.base/java.util=ALL-UNNAMED \
+--add-opens=java.base/java.util.concurrent=ALL-UNNAMED \
+--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED \
+--add-opens=java.base/sun.nio.ch=ALL-UNNAMED \
+--add-opens=java.base/sun.nio.cs=ALL-UNNAMED \
+--add-opens=java.base/sun.security.action=ALL-UNNAMED \
+--add-opens=java.base/sun.util.calendar=ALL-UNNAMED \
+--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED \
+-XX:+EnableDynamicAgentLoading \
+--enable-native-access=ALL-UNNAMED"
+  export JAVA_TOOL_OPTIONS
+}
+
+# --------------------------------------------------------------------------
+# Node check
+# --------------------------------------------------------------------------
+node_ok() {
+  command -v node >/dev/null 2>&1 || return 1
+  v="$(node -v 2>/dev/null | sed 's/^v//' | cut -d. -f1)"
+  [ -n "$v" ] && [ "$v" -ge "$REQUIRED_NODE_MAJOR" ] 2>/dev/null
+}
+
+# --------------------------------------------------------------------------
+# Port helpers (from darpan-ui/scripts/dev-stack.sh)
+# --------------------------------------------------------------------------
+listener_pids() { lsof -tiTCP:"$1" -sTCP:LISTEN 2>/dev/null || true; }
+
+clear_port() {
+  port="$1"
+  pids="$(listener_pids "$port")"
+  [ -z "$pids" ] && return 0
+  step "stopping existing listener(s) on port $port: $pids"
+  for pid in $pids; do kill "$pid" 2>/dev/null || true; done
+  n=0
+  while [ "$n" -lt 5 ]; do
+    [ -z "$(listener_pids "$port")" ] && return 0
+    sleep 1; n=$((n + 1))
+  done
+  rem="$(listener_pids "$port")"
+  if [ -n "$rem" ]; then
+    step "force stopping lingering listener(s) on port $port: $rem"
+    for pid in $rem; do kill -9 "$pid" 2>/dev/null || true; done
+    sleep 1
+  fi
+  [ -z "$(listener_pids "$port")" ] || die "unable to clear listener(s) on port $port"
+}
+
+# --------------------------------------------------------------------------
+# Workspace resolution
+# --------------------------------------------------------------------------
+resolve_workspace() {
+  # $1 = optional explicit path
+  if [ -n "${1:-}" ]; then
+    WORKSPACE="$1"
+  elif [ -n "${DARPAN_HOME:-}" ]; then
+    WORKSPACE="$DARPAN_HOME"
+  else
+    WORKSPACE="${HOME}/darpan"
+  fi
+  mkdir -p "$WORKSPACE"
+  WORKSPACE="$(CDPATH= cd -- "$WORKSPACE" && pwd)"
+  BACKEND_DIR="$WORKSPACE/darpan-backend"
+  UI_DIR="$WORKSPACE/darpan-ui"
+}
+
+# env-var ref override: DARPAN_REF_<NAME> where NAME is uppercased, - -> _
+ref_override_for() {
+  name_uc="$(printf '%s' "$1" | tr 'a-z-' 'A-Z_')"
+  eval "printf '%s' \"\${DARPAN_REF_${name_uc}:-}\""
+}
+
+# --------------------------------------------------------------------------
+# Clone or update one repo at a ref
+# --------------------------------------------------------------------------
+sync_repo() {
+  # $1=dest_dir  $2=url  $3=ref  $4=name
+  dest="$1"; url="$2"; ref="$3"; name="$4"
+  ov="$(ref_override_for "$name")"; [ -n "$ov" ] && ref="$ov"
+
+  if [ -d "$dest/.git" ]; then
+    step "$name: updating ($ref)"
+    git -C "$dest" fetch --quiet origin "$ref" 2>/dev/null || git -C "$dest" fetch --quiet origin
+    git -C "$dest" checkout --quiet "$ref" 2>/dev/null || warn "$name: could not checkout $ref"
+    git -C "$dest" pull --quiet --ff-only 2>/dev/null || true
+  else
+    step "$name: cloning $url ($ref)"
+    git clone --quiet --branch "$ref" "$url" "$dest" 2>/dev/null \
+      || git clone --quiet "$url" "$dest"
+  fi
+}
+
+# Sync only manifest entries of a given kind (backend|component|ui).
+# Phasing matters on a fresh setup: the framework must be cloned and
+# `getRuntime` must run BEFORE components are placed under runtime/component,
+# otherwise the pre-existing runtime/ dir makes getRuntime a no-op and the
+# Moqui runtime (conf/MoquiDevConf.xml, etc.) is never downloaded.
+sync_kind() {
+  want="$1"
+  printf '%s\n' "$REPO_MANIFEST" | while IFS='|' read -r kind name url ref; do
+    [ -z "$kind" ] && continue
+    [ "$kind" = "$want" ] || continue
+    case "$kind" in
+      backend) sync_repo "$BACKEND_DIR" "$url" "$ref" "$name" ;;
+      ui)      sync_repo "$UI_DIR" "$url" "$ref" "$name" ;;
+      component)
+        [ -d "$BACKEND_DIR" ] || die "backend not cloned yet; cannot place component $name"
+        sync_repo "$BACKEND_DIR/runtime/component/$name" "$url" "$ref" "$name" ;;
+    esac
+  done
+}
+
+# Update every repo in place (used by `darpan update`, where runtime already
+# exists so ordering is irrelevant).
+clone_all() {
+  sync_kind backend
+  sync_kind component
+  sync_kind ui
+}
+
+# --------------------------------------------------------------------------
+# Backend build / load
+# --------------------------------------------------------------------------
+backend_get_runtime() {
+  step "downloading Moqui runtime (gradlew getRuntime)"
+  ( cd "$BACKEND_DIR" && ./gradlew --no-daemon getRuntime )
+}
+
+backend_load() {
+  step "loading setup data (gradlew load — types=all)"
+  ( cd "$BACKEND_DIR" && ./gradlew --no-daemon load )
+  : > "$WORKSPACE/$LOADED_SENTINEL"
+}
+
+# --------------------------------------------------------------------------
+# Start / supervise both processes
+# --------------------------------------------------------------------------
+BACKEND_PID=""; FRONTEND_PID=""
+supervise_cleanup() {
+  trap - INT TERM EXIT
+  [ -n "$FRONTEND_PID" ] && kill "$FRONTEND_PID" 2>/dev/null || true
+  [ -n "$BACKEND_PID" ] && kill "$BACKEND_PID" 2>/dev/null || true
+  [ -n "$FRONTEND_PID" ] && wait "$FRONTEND_PID" 2>/dev/null || true
+  [ -n "$BACKEND_PID" ] && wait "$BACKEND_PID" 2>/dev/null || true
+}
+
+start_stack() {
+  [ -d "$BACKEND_DIR" ] || die "backend not found at $BACKEND_DIR — run 'darpan up' first"
+  [ -d "$UI_DIR" ] || die "UI not found at $UI_DIR — run 'darpan up' first"
+
+  clear_port "$BACKEND_PORT"
+  clear_port "$FRONTEND_PORT"
+
+  trap 'supervise_cleanup' INT TERM EXIT
+
+  info "starting backend  -> http://localhost:$BACKEND_PORT"
+  ( cd "$BACKEND_DIR" && exec ./gradlew --no-daemon run ) &
+  BACKEND_PID=$!
+
+  info "starting frontend -> http://localhost:$FRONTEND_PORT"
+  ( cd "$UI_DIR" && exec npm run dev -- --port "$FRONTEND_PORT" ) &
+  FRONTEND_PID=$!
+
+  info "stack up. Open http://localhost:$FRONTEND_PORT/login  (Ctrl+C to stop)"
+
+  while :; do
+    if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+      wait "$BACKEND_PID"; s=$?; err "backend exited (status $s)"; exit "$s"
+    fi
+    if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
+      wait "$FRONTEND_PID"; s=$?; err "frontend exited (status $s)"; exit "$s"
+    fi
+    sleep 1
+  done
+}
+
+# --------------------------------------------------------------------------
+# Commands
+# --------------------------------------------------------------------------
+cmd_doctor() {
+  rc=0
+  info "darpan doctor"
+
+  if [ "${DARPAN_SKIP_JDK_CHECK:-0}" = "1" ]; then
+    warn "JDK check skipped (DARPAN_SKIP_JDK_CHECK=1)"
+  elif resolve_jdk21 2>/dev/null; then
+    printf '  %sok%s   JDK %s  (%s)\n' "$C_GRN" "$C_OFF" "$REQUIRED_JDK_MAJOR" "$JAVA_HOME" >&2
+  else
+    printf '  %sFAIL%s JDK %s not found\n' "$C_RED" "$C_OFF" "$REQUIRED_JDK_MAJOR" >&2
+    printf '       fix: brew install --cask temurin@%s\n' "$REQUIRED_JDK_MAJOR" >&2
+    rc=1
+  fi
+
+  if node_ok; then
+    printf '  %sok%s   Node %s  (%s+ required)\n' "$C_GRN" "$C_OFF" "$(node -v)" "$REQUIRED_NODE_MAJOR" >&2
+  else
+    printf '  %sFAIL%s Node %s+ not found\n' "$C_RED" "$C_OFF" "$REQUIRED_NODE_MAJOR" >&2
+    printf '       fix: brew install node\n' >&2
+    rc=1
+  fi
+
+  for tool in git npm lsof; do
+    if command -v "$tool" >/dev/null 2>&1; then
+      printf '  %sok%s   %s\n' "$C_GRN" "$C_OFF" "$tool" >&2
+    else
+      printf '  %sFAIL%s %s not found\n' "$C_RED" "$C_OFF" "$tool" >&2; rc=1
+    fi
+  done
+
+  for p in "$BACKEND_PORT" "$FRONTEND_PORT"; do
+    if [ -z "$(listener_pids "$p")" ]; then
+      printf '  %sok%s   port %s free\n' "$C_GRN" "$C_OFF" "$p" >&2
+    else
+      printf '  %swarn%s port %s in use (darpan will try to reclaim it)\n' "$C_YEL" "$C_OFF" "$p" >&2
+    fi
+  done
+
+  [ "$rc" -eq 0 ] && info "doctor: all required checks passed" || err "doctor: $rc check(s) failed"
+  return "$rc"
+}
+
+cmd_up() {
+  ws=""; do_reload=0; no_start=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --dir) ws="${2:-}"; shift 2 ;;
+      --dir=*) ws="${1#--dir=}"; shift ;;
+      --reload) do_reload=1; shift ;;
+      --no-start) no_start=1; shift ;;
+      *) die "unknown option for 'up': $1" ;;
+    esac
+  done
+
+  resolve_workspace "$ws"
+  info "workspace: $WORKSPACE"
+  resolve_jdk21 || exit 1
+  node_ok || die "Node $REQUIRED_NODE_MAJOR+ required. Install with: brew install node"
+  export_jvm_flags
+
+  # Order matters on a fresh setup: framework -> getRuntime -> components/UI.
+  info "syncing backend framework"
+  sync_kind backend
+
+  info "preparing backend runtime (gradlew getRuntime)"
+  backend_get_runtime
+
+  info "syncing Darpan components and UI"
+  sync_kind component
+  sync_kind ui
+
+  if [ "$do_reload" -eq 1 ] || [ ! -f "$WORKSPACE/$LOADED_SENTINEL" ]; then
+    info "loading setup data (first run or --reload)"
+    backend_load
+  else
+    step "setup data already loaded (use --reload to force)"
+  fi
+
+  step "installing UI dependencies (npm install)"
+  ( cd "$UI_DIR" && npm install )
+
+  if [ "$no_start" -eq 1 ]; then
+    info "bootstrap complete (--no-start). Start later with: darpan start --dir $WORKSPACE"
+    return 0
+  fi
+
+  start_stack
+}
+
+cmd_start() {
+  ws=""
+  [ $# -gt 0 ] && case "$1" in --dir) ws="${2:-}";; --dir=*) ws="${1#--dir=}";; esac
+  resolve_workspace "$ws"
+  resolve_jdk21 || exit 1
+  node_ok || die "Node $REQUIRED_NODE_MAJOR+ required."
+  export_jvm_flags
+  start_stack
+}
+
+cmd_load() {
+  ws=""
+  [ $# -gt 0 ] && case "$1" in --dir) ws="${2:-}";; --dir=*) ws="${1#--dir=}";; esac
+  resolve_workspace "$ws"
+  resolve_jdk21 || exit 1
+  export_jvm_flags
+  [ -d "$BACKEND_DIR" ] || die "backend not found at $BACKEND_DIR — run 'darpan up' first"
+  if [ -n "$(listener_pids "$BACKEND_PORT")" ]; then
+    die "backend appears to be running on port $BACKEND_PORT. Stop it first (loads need the DB unlocked)."
+  fi
+  backend_load
+  info "load complete"
+}
+
+cmd_update() {
+  ws=""
+  [ $# -gt 0 ] && case "$1" in --dir) ws="${2:-}";; --dir=*) ws="${1#--dir=}";; esac
+  resolve_workspace "$ws"
+  [ -d "$BACKEND_DIR" ] || die "nothing to update at $WORKSPACE — run 'darpan up' first"
+  info "updating repositories in $WORKSPACE"
+  clone_all
+  info "update complete. Run 'darpan load' if seed data changed."
+}
+
+cmd_stop() {
+  info "stopping Darpan listeners on ports $BACKEND_PORT and $FRONTEND_PORT"
+  clear_port "$BACKEND_PORT"
+  clear_port "$FRONTEND_PORT"
+  info "stopped"
+}
+
+cmd_help() {
+  cat >&2 <<EOF
+darpan — bootstrap and run a local Darpan development stack
+
+Usage:
+  darpan up [--dir <path>] [--reload]   Clone/update repos, load data, start the stack
+  darpan bootstrap [--dir <path>]       Set up the workspace without starting (up --no-start)
+  darpan start [--dir <path>]           Start an already-set-up stack
+  darpan stop                           Stop backend/frontend listeners
+  darpan load [--dir <path>]            Reload setup data (backend must be stopped)
+  darpan update [--dir <path>]          Pull latest for all repos
+  darpan doctor                         Check prerequisites (JDK 21, Node, ports)
+  darpan version                        Print CLI version
+  darpan help                           Show this help
+
+Workspace:
+  Default ${HOME}/darpan, or \$DARPAN_HOME, or --dir.
+  Backend: <workspace>/darpan-backend   UI: <workspace>/darpan-ui
+
+Environment:
+  DARPAN_JAVA_HOME       Path to a JDK 21 to use
+  DARPAN_SKIP_JDK_CHECK  Set to 1 to bypass the JDK 21 check (not recommended)
+  DARPAN_HOME            Default workspace directory
+  DARPAN_BACKEND_PORT    Backend port (default 8080)
+  DARPAN_FRONTEND_PORT   Frontend port (default 5173)
+  DARPAN_REF_<NAME>      Override a repo's branch/tag, e.g. DARPAN_REF_DARPAN=2.0.0
+
+URLs when running:
+  UI    http://localhost:${FRONTEND_PORT}
+  API   http://localhost:${BACKEND_PORT}
+EOF
+}
+
+cmd_version() { printf 'darpan %s\n' "$DARPAN_CLI_VERSION"; }
+
+# --------------------------------------------------------------------------
+# Dispatch
+# --------------------------------------------------------------------------
+sub="${1:-help}"
+[ $# -gt 0 ] && shift || true
+case "$sub" in
+  up)               cmd_up "$@" ;;
+  bootstrap)        cmd_up --no-start "$@" ;;
+  start)            cmd_start "$@" ;;
+  stop)             cmd_stop "$@" ;;
+  load)             cmd_load "$@" ;;
+  update)           cmd_update "$@" ;;
+  doctor)           cmd_doctor "$@" ;;
+  version|--version|-v) cmd_version ;;
+  help|--help|-h)   cmd_help ;;
+  *) err "unknown command: $sub"; cmd_help; exit 2 ;;
+esac

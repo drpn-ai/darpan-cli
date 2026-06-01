@@ -1,0 +1,48 @@
+name: release
+
+# Cut a release tarball when a v* tag is pushed:
+#   git tag v0.1.0 && git push origin v0.1.0
+# The job builds darpan-<version>.tar.gz, attaches it to a GitHub release, and
+# prints the url/sha256/version to paste into Formula/darpan.rb in the tap repo.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build tarball
+        id: pkg
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sh ./scripts/package.sh "$VERSION"
+          SHA=$(shasum -a 256 "dist/darpan-$VERSION.tar.gz" | awk '{print $1}')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Homebrew formula values for v$VERSION"
+            echo ""
+            echo '```ruby'
+            echo "  url \"https://github.com/drpn-ai/darpan-cli/releases/download/v$VERSION/darpan-$VERSION.tar.gz\""
+            echo "  sha256 \"$SHA\""
+            echo "  version \"$VERSION\""
+            echo '```'
+            echo ""
+            echo "Paste these into \`Formula/darpan.rb\` in \`drpn-ai/homebrew-tap\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/darpan-${{ steps.pkg.outputs.version }}.tar.gz
+          generate_release_notes: true
