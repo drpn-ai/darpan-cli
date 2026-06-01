@@ -20,18 +20,24 @@ DARPAN_CLI_VERSION="0.1.0-dev"
 #   kind = backend   -> Moqui framework, cloned as the workspace's darpan-backend
 #          component -> cloned under darpan-backend/runtime/component/<name>
 #          ui        -> cloned as a sibling of darpan-backend
-#   ref  = branch or tag to check out. Pin to a release tag for reproducible
-#          installs; main/master tracks latest. Override any ref with an env
-#          var named DARPAN_REF_<NAME-UPPERCASED-WITH-UNDERSCORES>, e.g.
-#          DARPAN_REF_DARPAN=2.0.0  or  DARPAN_REF_DARPAN_UI=2.0.0
+#   ref  = branch or tag to check out.
+#
+# Pinning policy for reproducible installs:
+#   - The drpn-ai product repos are pinned to their latest release tag.
+#   - moqui-framework stays on `master`: Darpan tracks upstream Moqui 4 master
+#     (ahead of the v4.0.0 tag — the JDK 21 / Bitronix work lives there).
+#   - moqui-sftp stays on `master` alongside the framework.
+# Override any ref with DARPAN_REF_<NAME-UPPERCASED-WITH-UNDERSCORES>, e.g.
+#   DARPAN_REF_DARPAN=main           # track the release branch instead of a tag
+#   DARPAN_REF_DARPAN_UI=v2.0.0      # pin an older UI release
 # --------------------------------------------------------------------------
 REPO_MANIFEST='backend|darpan-backend|https://github.com/moqui/moqui-framework.git|master
 component|moqui-sftp|https://github.com/moqui/moqui-sftp.git|master
-component|darpan|https://github.com/drpn-ai/darpan.git|main
-component|shopify-darpan|https://github.com/drpn-ai/shopify-darpan.git|main
-component|netsuite-darpan|https://github.com/drpn-ai/netsuite-darpan.git|main
-component|darpan-hotwax|https://github.com/drpn-ai/darpan-hotwax.git|main
-ui|darpan-ui|https://github.com/drpn-ai/darpan-ui.git|main'
+component|darpan|https://github.com/drpn-ai/darpan.git|v2.1.2
+component|shopify-darpan|https://github.com/drpn-ai/shopify-darpan.git|v0.2.1
+component|netsuite-darpan|https://github.com/drpn-ai/netsuite-darpan.git|v0.1.0
+component|darpan-hotwax|https://github.com/drpn-ai/darpan-hotwax.git|v0.2.0
+ui|darpan-ui|https://github.com/drpn-ai/darpan-ui.git|v2.1.0'
 
 REQUIRED_JDK_MAJOR=21
 REQUIRED_NODE_MAJOR=20

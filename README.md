@@ -49,13 +49,14 @@ The Homebrew formula lives in the separate tap repo **drpn-ai/homebrew-tap** (`F
 
 ## Version pinning
 
-Each manifest entry has a `ref` (branch or tag). Override per repo with `DARPAN_REF_<NAME>`:
+For reproducible installs the `drpn-ai` product repos are pinned to their latest release tag in `REPO_MANIFEST`; `moqui-framework` and `moqui-sftp` stay on `master` (Darpan tracks upstream Moqui 4 master, which is ahead of the `v4.0.0` tag).
+
+Override any repo's ref with `DARPAN_REF_<NAME>` (name uppercased, `-`→`_`):
 
 ```bash
-DARPAN_REF_DARPAN=2.0.0 DARPAN_REF_DARPAN_UI=2.0.0 darpan up
+DARPAN_REF_DARPAN=main          # track the release branch instead of the pinned tag
+DARPAN_REF_DARPAN_UI=v2.0.0     # pin an older UI release
 ```
-
-For reproducible installs, the published manifest refs should point at coordinated release tags rather than `main`/`master`.
 
 ## Packaging for Homebrew
 
