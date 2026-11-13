@@ -45,7 +45,7 @@ darpan-cli/                 -> drpn-ai/darpan-cli
 
 ## Use Darpan from Claude Code
 
-The same `darpan` command reads a tenant's data and starts runs, as you. It needs Node 22.18 or newer (Homebrew's `node` is enough) and Darpan running somewhere you can sign in.
+The same `darpan` command reads a tenant's data and starts runs, as you. It needs Node 22.18 or newer on the machine (the formula does not install it: https://nodejs.org, or `brew install node`) and Darpan running somewhere you can sign in.
 
 ```bash
 brew tap drpn-ai/tap && brew trust --formula drpn-ai/tap/darpan && brew install darpan
@@ -129,7 +129,7 @@ sh scripts/package.sh 0.1.0   # writes dist/darpan-0.1.0.tar.gz and prints the s
 
 - The dual-process `darpan start` (foreground supervision of `gradlew run` + Vite) has not been run via the CLI because the Moqui backend binds `:8080` from its conf and would collide with an already-running local stack. The supervision logic itself is lifted verbatim from the proven `dev-stack.sh`.
 - Manifest refs default to `main`/`master` until coordinated release tags are chosen.
-- The formula installs Node only; JDK 21 and `git` are the local stack's to bring (`darpan doctor` says how). If JDK 21 comes from Homebrew's keg-only `openjdk@21`, the CLI resolves it via `brew --prefix openjdk@21` / `/usr/libexec/java_home` (validating the actual major version). Worth a check on a machine where JDK 21 exists only via Homebrew.
+- The formula installs no dependencies; Node 22.18+, JDK 21 and `git` are the local stack's to bring (`darpan doctor` says how). If JDK 21 comes from Homebrew's keg-only `openjdk@21`, the CLI resolves it via `brew --prefix openjdk@21` / `/usr/libexec/java_home` (validating the actual major version). Worth a check on a machine where JDK 21 exists only via Homebrew.
 
 ## Tests
 

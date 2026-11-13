@@ -573,6 +573,7 @@ run_agent() {
   here=$(dirname "$(resolve_self "$0")")
   if ! node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a===22&&b>=18)?0:1)' 2>/dev/null; then
     echo "darpan $1 needs Node 22.18 or newer (found $(node --version 2>/dev/null || echo none))." >&2
+    echo "  Install it from https://nodejs.org (or: brew install node), then run darpan $1 again." >&2
     exit 2
   fi
   exec node "$here/../agent/main.ts" "$@"
