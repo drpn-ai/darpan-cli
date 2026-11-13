@@ -80,6 +80,7 @@ test('every MCP tool is classed exactly once, and tools/list says which ones rea
   assert.deepEqual(byName.get('darpan_findings_list').annotations, { readOnlyHint: true })
   assert.deepEqual(byName.get('darpan_run_start').annotations, { readOnlyHint: false, destructiveHint: false })
   assert.deepEqual(byName.get('darpan_script_delete').annotations, { readOnlyHint: false, destructiveHint: true })
+  assert.deepEqual(byName.get('darpan_deploy').annotations, { readOnlyHint: false, destructiveHint: true }, '--id overwrites a deployment and can switch it off')
   assert.deepEqual(byName.get('darpan_call').annotations, { readOnlyHint: false, destructiveHint: true }, 'call can reach any allowlisted write')
 })
 

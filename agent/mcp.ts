@@ -17,10 +17,11 @@ const EXCLUDED = new Set(['login', 'logout', 'tenant use'])
 export const READ_ONLY = new Set(['whoami', 'tenants', 'api', 'systems', 'describe', 'runs', 'run status', 'run wait', 'result',
   'audits', 'report', 'findings list', 'findings show', 'findings by-order', 'audit progress', 'audit settings',
   'audit extracts', 'month export', 'query run', 'scripts', 'script run', 'deployments', 'deploy preview'])
-/** Adds or acts without overwriting or removing anything: starts a run, re-checks a finding, adds or sends a deployment. */
-export const ADDITIVE = new Set(['run start', 'findings recheck', 'deploy', 'deploy send'])
-/** Can overwrite or remove: `call` reaches any allowlisted method, writes included. */
-export const DESTRUCTIVE = new Set(['call', 'script save', 'script delete', 'deploy off', 'deploy delete'])
+/** Adds or acts without overwriting or removing anything: starts a run, re-checks a finding, posts a deployment now. */
+export const ADDITIVE = new Set(['run start', 'findings recheck', 'deploy send'])
+/** Can overwrite or remove: `call` reaches any allowlisted method, writes included; `deploy --id` overwrites a
+ *  deployment and, without --on, switches it off. */
+export const DESTRUCTIVE = new Set(['call', 'script save', 'script delete', 'deploy', 'deploy off', 'deploy delete'])
 
 export function annotationsFor(command: Command) {
   if (READ_ONLY.has(command.name)) return { readOnlyHint: true }
