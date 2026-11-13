@@ -8,7 +8,7 @@ import { buildCtx, run } from '../main.ts'
 import { saveConfig } from '../config.ts'
 import { COMMANDS } from '../commands.ts'
 import { GUIDE } from '../guide.ts'
-import { runMcp, toolName } from '../mcp.ts'
+import { ADDITIVE, DESTRUCTIVE, READ_ONLY, mcpCommands, runMcp, toolName } from '../mcp.ts'
 import { fakeBackend } from './fakeBackend.ts'
 
 const SESSION = 'facade.AuthFacadeServices.get#SessionInfo'
@@ -66,6 +66,21 @@ test('tools/list matches the command table', async () => {
     assert.equal(t.inputSchema.type, 'object')
   }
   assert.ok(tools.some((t: any) => t.name === 'darpan_call') && tools.some((t: any) => t.name === 'darpan_api'))
+})
+
+test('every MCP tool is classed exactly once, and tools/list says which ones read and which can overwrite', async () => {
+  for (const c of mcpCommands()) {
+    const sets = [READ_ONLY, ADDITIVE, DESTRUCTIVE].filter((s) => s.has(c.name)).length
+    assert.equal(sets, 1, `${c.name} must be in exactly one of READ_ONLY, ADDITIVE, DESTRUCTIVE`)
+  }
+  for (const name of [...READ_ONLY, ...ADDITIVE, ...DESTRUCTIVE]) assert.ok(mcpCommands().some((c) => c.name === name), `${name} is not an MCP command`)
+  const { cfg } = setup()
+  const { replies } = await serve([{ jsonrpc: '2.0', id: 1, method: 'tools/list' }], cfg)
+  const byName = new Map<string, any>(replies[0].result.tools.map((t: any) => [t.name, t]))
+  assert.deepEqual(byName.get('darpan_findings_list').annotations, { readOnlyHint: true })
+  assert.deepEqual(byName.get('darpan_run_start').annotations, { readOnlyHint: false, destructiveHint: false })
+  assert.deepEqual(byName.get('darpan_script_delete').annotations, { readOnlyHint: false, destructiveHint: true })
+  assert.deepEqual(byName.get('darpan_call').annotations, { readOnlyHint: false, destructiveHint: true }, 'call can reach any allowlisted write')
 })
 
 test('no MCP tool schema exposes a cliOnly property, and a call that passes one is refused unread', async () => {

@@ -4,7 +4,7 @@ One `darpan` command, designed for distribution via Homebrew. A POSIX-shell laun
 
 ## Status
 
-Released through Homebrew (`brew tap drpn-ai/tap && brew install darpan`). The source is split across two repos:
+Released through Homebrew (`brew tap drpn-ai/tap && brew trust --formula drpn-ai/tap/darpan && brew install darpan`). The source is split across two repos:
 
 - `drpn-ai/darpan-cli` — the CLI source, release workflow, and packaging (everything here except `tap/`).
 - `drpn-ai/homebrew-tap` — the contents of `tap/` (`Formula/darpan.rb` + tap README).
@@ -48,7 +48,7 @@ darpan-cli/                 -> drpn-ai/darpan-cli
 The same `darpan` command reads a tenant's data and starts runs, as you. It needs Node 22.18 or newer (Homebrew's `node` is enough) and Darpan running somewhere you can sign in.
 
 ```bash
-brew tap drpn-ai/tap && brew install darpan
+brew tap drpn-ai/tap && brew trust --formula drpn-ai/tap/darpan && brew install darpan
 darpan login                         # a page opens in your browser: type the code your terminal shows
 claude mcp add darpan -- darpan mcp  # every command below becomes a tool in Claude Code
 darpan guide                         # the usual path, limits and roles
@@ -112,7 +112,7 @@ Release flow (automated by `.github/workflows/release.yml`):
 1. In `drpn-ai/darpan-cli`, push a tag: `git tag v0.1.0 && git push origin v0.1.0`.
 2. The `release` workflow runs `scripts/package.sh`, attaches `darpan-0.1.0.tar.gz` to a GitHub release, and prints the `url` / `sha256` / `version` in the job summary.
 3. Paste those into `Formula/darpan.rb` in `drpn-ai/homebrew-tap` and commit.
-4. Users: `brew tap drpn-ai/tap && brew install darpan`.
+4. Users: `brew tap drpn-ai/tap && brew trust --formula drpn-ai/tap/darpan && brew install darpan`.
 
 Build a tarball locally without CI:
 
@@ -129,7 +129,7 @@ sh scripts/package.sh 0.1.0   # writes dist/darpan-0.1.0.tar.gz and prints the s
 
 - The dual-process `darpan start` (foreground supervision of `gradlew run` + Vite) has not been run via the CLI because the Moqui backend binds `:8080` from its conf and would collide with an already-running local stack. The supervision logic itself is lifted verbatim from the proven `dev-stack.sh`.
 - Manifest refs default to `main`/`master` until coordinated release tags are chosen.
-- `openjdk@21` is keg-only; the CLI resolves it via `brew --prefix openjdk@21` / `/usr/libexec/java_home` (validating the actual major version). Worth a check on a machine where JDK 21 exists only via Homebrew.
+- The formula installs Node only; JDK 21 and `git` are the local stack's to bring (`darpan doctor` says how). If JDK 21 comes from Homebrew's keg-only `openjdk@21`, the CLI resolves it via `brew --prefix openjdk@21` / `/usr/libexec/java_home` (validating the actual major version). Worth a check on a machine where JDK 21 exists only via Homebrew.
 
 ## Tests
 

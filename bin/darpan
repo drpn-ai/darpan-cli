@@ -137,7 +137,7 @@ resolve_jdk21() {
   fi
 
   if [ -z "$candidate" ]; then
-    err "JDK $REQUIRED_JDK_MAJOR is required (Moqui 4 / Spark 3.5 / Drools-MVEL 2.5) but was not found."
+    err "JDK $REQUIRED_JDK_MAJOR is required (Moqui 4 / Spark 4 / Drools 10) but was not found."
     err "  Install it:  brew install --cask temurin@$REQUIRED_JDK_MAJOR"
     err "  Then re-run, or point at it:  DARPAN_JAVA_HOME=/path/to/jdk21 darpan up"
     err "  Bypass (not recommended):  DARPAN_SKIP_JDK_CHECK=1 darpan up"
@@ -386,6 +386,9 @@ cmd_doctor() {
       printf '  %sok%s   %s\n' "$C_GRN" "$C_OFF" "$tool" >&2
     else
       printf '  %sFAIL%s %s not found\n' "$C_RED" "$C_OFF" "$tool" >&2; rc=$((rc + 1))
+      if [ "$tool" = git ]; then
+        printf '       fix: xcode-select --install   (or: brew install git)\n' >&2
+      fi
     fi
   done
 

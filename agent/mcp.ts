@@ -12,8 +12,23 @@ const SUPPORTED_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-0
 /** Terminal-only: sign-in, sign-out and the saved tenant choice change local config, so they stay out of MCP. */
 const EXCLUDED = new Set(['login', 'logout', 'tenant use'])
 
+/** What each MCP tool does to Darpan, so a client can ask before a write (MCP tool annotations). Every MCP command
+ *  sits in exactly one set (a test enforces it), so a new command cannot slip in looking read-only. */
+export const READ_ONLY = new Set(['whoami', 'tenants', 'api', 'systems', 'describe', 'runs', 'run status', 'run wait', 'result',
+  'audits', 'report', 'findings list', 'findings show', 'findings by-order', 'audit progress', 'audit settings',
+  'audit extracts', 'month export', 'query run', 'scripts', 'script run', 'deployments', 'deploy preview'])
+/** Adds or acts without overwriting or removing anything: starts a run, re-checks a finding, adds or sends a deployment. */
+export const ADDITIVE = new Set(['run start', 'findings recheck', 'deploy', 'deploy send'])
+/** Can overwrite or remove: `call` reaches any allowlisted method, writes included. */
+export const DESTRUCTIVE = new Set(['call', 'script save', 'script delete', 'deploy off', 'deploy delete'])
+
+export function annotationsFor(command: Command) {
+  if (READ_ONLY.has(command.name)) return { readOnlyHint: true }
+  return { readOnlyHint: false, destructiveHint: !ADDITIVE.has(command.name) }
+}
+
 export const toolName = (command: Command) => `darpan_${command.name.replace(/ /g, '_')}`
-const mcpCommands = () => COMMANDS.filter((c) => !EXCLUDED.has(c.name))
+export const mcpCommands = () => COMMANDS.filter((c) => !EXCLUDED.has(c.name))
 
 /** The command's input schema without its path-typed (cliOnly) properties: MCP callers use the inline forms. */
 export function inputSchemaFor(command: Command) {
@@ -25,7 +40,7 @@ export function inputSchemaFor(command: Command) {
 }
 
 function listTools() {
-  return mcpCommands().map((command) => ({ name: toolName(command), description: command.description, inputSchema: inputSchemaFor(command) }))
+  return mcpCommands().map((command) => ({ name: toolName(command), description: command.description, inputSchema: inputSchemaFor(command), annotations: annotationsFor(command) }))
 }
 
 export type CtxFactory = (command: Command, tenant?: string) => Ctx
