@@ -6,8 +6,10 @@
 #   scripts/package.sh [version]
 #
 # version defaults to the latest git tag (with any leading "v" stripped).
-# The tarball contains darpan-<version>/bin/darpan (+ README, LICENSE) so the
-# Homebrew formula's `bin.install "bin/darpan"` works after extraction.
+# The tarball contains darpan-<version>/bin/darpan and agent/ (the Node CLI that
+# bin/darpan hands data and action commands to; its tests and the allowlist sync
+# tool are left out), plus README and LICENSE. The Homebrew formula installs
+# bin and agent side by side into libexec.
 
 set -eu
 
@@ -30,6 +32,8 @@ mkdir -p "$STAGE/bin"
 # Copy the CLI, stamping the version so `darpan version` matches the release.
 sed "s/^DARPAN_CLI_VERSION=.*/DARPAN_CLI_VERSION=\"$VERSION\"/" bin/darpan > "$STAGE/bin/darpan"
 chmod +x "$STAGE/bin/darpan"
+cp -R agent "$STAGE/agent"
+rm -rf "$STAGE/agent/__tests__" "$STAGE/agent/scripts"
 [ -f README.md ] && cp README.md "$STAGE/"
 [ -f LICENSE ]   && cp LICENSE   "$STAGE/"
 

@@ -23,21 +23,24 @@ DARPAN_CLI_VERSION="0.1.0-dev"
 #   ref  = branch or tag to check out.
 #
 # Pinning policy for reproducible installs:
-#   - The drpn-ai product repos are pinned to their latest release tag.
-#   - moqui-framework stays on `master`: Darpan tracks upstream Moqui 4 master
-#     (ahead of the v4.0.0 tag — the JDK 21 / Bitronix work lives there).
-#   - moqui-sftp stays on `master` alongside the framework.
+#   - The drpn-ai product repos are pinned to the release set production runs
+#     (darpan-docker-config docker/prod/Dockerfile; Darpan 3.0.3 + UI 4.0.3).
+#   - moqui-framework stays on upstream `master` (Moqui 4). Production builds the
+#     drpn-ai fork, whose one extra commit fixes a login deadlock seen only on
+#     MySQL; the local stack runs H2.
+#   - moqui-sftp is pinned to v1.0.3, as production is.
 # Override any ref with DARPAN_REF_<NAME-UPPERCASED-WITH-UNDERSCORES>, e.g.
 #   DARPAN_REF_DARPAN=main           # track the release branch instead of a tag
-#   DARPAN_REF_DARPAN_UI=v2.0.0      # pin an older UI release
+#   DARPAN_REF_DARPAN_UI=v4.0.2      # pin an older UI release
 # --------------------------------------------------------------------------
 REPO_MANIFEST='backend|darpan-backend|https://github.com/moqui/moqui-framework.git|master
-component|moqui-sftp|https://github.com/moqui/moqui-sftp.git|master
-component|darpan|https://github.com/drpn-ai/darpan.git|v2.1.2
-component|shopify-darpan|https://github.com/drpn-ai/shopify-darpan.git|v0.2.1
-component|netsuite-darpan|https://github.com/drpn-ai/netsuite-darpan.git|v0.1.0
-component|darpan-hotwax|https://github.com/drpn-ai/darpan-hotwax.git|v0.2.0
-ui|darpan-ui|https://github.com/drpn-ai/darpan-ui.git|v2.1.0'
+component|moqui-sftp|https://github.com/moqui/moqui-sftp.git|v1.0.3
+component|darpan|https://github.com/drpn-ai/darpan.git|v3.0.3
+component|shopify-darpan|https://github.com/drpn-ai/shopify-darpan.git|v0.9.1
+component|netsuite-darpan|https://github.com/drpn-ai/netsuite-darpan.git|v0.5.1
+component|darpan-hotwax|https://github.com/drpn-ai/darpan-hotwax.git|v1.0.1
+component|moqui-gql|https://github.com/drpn-ai/moqui-gql.git|v1.0.0
+ui|darpan-ui|https://github.com/drpn-ai/darpan-ui.git|v4.0.3'
 
 REQUIRED_JDK_MAJOR=21
 REQUIRED_NODE_MAJOR=20
@@ -68,7 +71,11 @@ die()  { err "$@"; exit 1; }
 # --------------------------------------------------------------------------
 java_major_of() {
   # $1 = path to a java binary
-  "$1" -version 2>&1 | head -1 | awk -F'"' '{print $2}' | cut -d. -f1
+  # Match the version LINE rather than the first line: with JAVA_TOOL_OPTIONS or
+  # _JAVA_OPTIONS exported (sdkman, IDE shells, and this project's own
+  # dev-stack.sh) the JVM prints "Picked up ..." first, and taking head -1 there
+  # yields an empty version — every JDK looks wrong and every command aborts.
+  "$1" -version 2>&1 | awk -F'"' '/version "/{print $2; exit}' | cut -d. -f1
 }
 
 # Real java.home for a given java binary (resolves jenv/asdf/sdkman shims).
@@ -236,15 +243,24 @@ sync_repo() {
   dest="$1"; url="$2"; ref="$3"; name="$4"
   ov="$(ref_override_for "$name")"; [ -n "$ov" ] && ref="$ov"
 
+  # A ref that does not resolve is an error, not a reason to take whatever the
+  # remote's default branch happens to be: the manifest exists so an install can
+  # be pinned, and silently substituting main defeats that with no output at all.
+  ref_hint="set DARPAN_REF_$(printf '%s' "$name" | tr 'a-z-' 'A-Z_') to override it"
   if [ -d "$dest/.git" ]; then
     step "$name: updating ($ref)"
     git -C "$dest" fetch --quiet origin "$ref" 2>/dev/null || git -C "$dest" fetch --quiet origin
-    git -C "$dest" checkout --quiet "$ref" 2>/dev/null || warn "$name: could not checkout $ref"
-    git -C "$dest" pull --quiet --ff-only 2>/dev/null || true
+    git -C "$dest" checkout --quiet "$ref" \
+      || die "$name: ref '$ref' not found in $url. Check the ref, or $ref_hint."
+    # Tags and detached HEADs have nothing to fast-forward; only a branch does.
+    if git -C "$dest" symbolic-ref -q HEAD >/dev/null 2>&1; then
+      git -C "$dest" pull --quiet --ff-only \
+        || warn "$name: could not fast-forward $ref (diverged history or local changes)"
+    fi
   else
     step "$name: cloning $url ($ref)"
-    git clone --quiet --branch "$ref" "$url" "$dest" 2>/dev/null \
-      || git clone --quiet "$url" "$dest"
+    git clone --quiet --branch "$ref" "$url" "$dest" \
+      || die "$name: ref '$ref' not found in $url. Check the ref, or $ref_hint."
   fi
 }
 
@@ -285,6 +301,14 @@ backend_get_runtime() {
 }
 
 backend_load() {
+  # moqui-gql contributes a tool factory (GqlToolFactory) loaded at ECF init, so its classes +
+  # vendored graphql-java must exist in lib/ BEFORE load/run. Nothing depends on moqui-gql in the
+  # build graph (it compileOnly-depends on darpan, not vice versa), so `load`/`run` won't build it —
+  # build its jar explicitly. Skip gracefully if the component isn't present.
+  if [ -d "$BACKEND_DIR/runtime/component/moqui-gql" ]; then
+    step "building moqui-gql graphql engine (jar + vendored graphql-java)"
+    ( cd "$BACKEND_DIR" && ./gradlew --no-daemon :runtime:component:moqui-gql:jar )
+  fi
   step "loading setup data (gradlew load — types=all)"
   ( cd "$BACKEND_DIR" && ./gradlew --no-daemon load )
   : > "$WORKSPACE/$LOADED_SENTINEL"
@@ -346,7 +370,7 @@ cmd_doctor() {
   else
     printf '  %sFAIL%s JDK %s not found\n' "$C_RED" "$C_OFF" "$REQUIRED_JDK_MAJOR" >&2
     printf '       fix: brew install --cask temurin@%s\n' "$REQUIRED_JDK_MAJOR" >&2
-    rc=1
+    rc=$((rc + 1))
   fi
 
   if node_ok; then
@@ -354,14 +378,14 @@ cmd_doctor() {
   else
     printf '  %sFAIL%s Node %s+ not found\n' "$C_RED" "$C_OFF" "$REQUIRED_NODE_MAJOR" >&2
     printf '       fix: brew install node\n' >&2
-    rc=1
+    rc=$((rc + 1))
   fi
 
   for tool in git npm lsof; do
     if command -v "$tool" >/dev/null 2>&1; then
       printf '  %sok%s   %s\n' "$C_GRN" "$C_OFF" "$tool" >&2
     else
-      printf '  %sFAIL%s %s not found\n' "$C_RED" "$C_OFF" "$tool" >&2; rc=1
+      printf '  %sFAIL%s %s not found\n' "$C_RED" "$C_OFF" "$tool" >&2; rc=$((rc + 1))
     fi
   done
 
@@ -373,8 +397,12 @@ cmd_doctor() {
     fi
   done
 
-  [ "$rc" -eq 0 ] && info "doctor: all required checks passed" || err "doctor: $rc check(s) failed"
-  return "$rc"
+  if [ "$rc" -eq 0 ]; then
+    info "doctor: all required checks passed"
+    return 0
+  fi
+  err "doctor: $rc check(s) failed"
+  return 1
 }
 
 cmd_up() {
@@ -391,6 +419,19 @@ cmd_up() {
 
   resolve_workspace "$ws"
   info "workspace: $WORKSPACE"
+
+  # Decide up front whether this run will load, so the DB-lock guard can refuse
+  # BEFORE cloning several GB rather than after. `darpan load` enforces the same
+  # rule; both paths call backend_load, so both need it.
+  if [ "$do_reload" -eq 1 ] || [ ! -f "$WORKSPACE/$LOADED_SENTINEL" ]; then
+    will_load=1
+  else
+    will_load=0
+  fi
+  if [ "$will_load" -eq 1 ] && [ -n "$(listener_pids "$BACKEND_PORT")" ]; then
+    die "backend appears to be running on port $BACKEND_PORT. Stop it first ('darpan stop'); loads need the DB unlocked."
+  fi
+
   resolve_jdk21 || exit 1
   node_ok || die "Node $REQUIRED_NODE_MAJOR+ required. Install with: brew install node"
   export_jvm_flags
@@ -406,7 +447,7 @@ cmd_up() {
   sync_kind component
   sync_kind ui
 
-  if [ "$do_reload" -eq 1 ] || [ ! -f "$WORKSPACE/$LOADED_SENTINEL" ]; then
+  if [ "$will_load" -eq 1 ]; then
     info "loading setup data (first run or --reload)"
     backend_load
   else
@@ -467,7 +508,7 @@ cmd_stop() {
 
 cmd_help() {
   cat >&2 <<EOF
-darpan — bootstrap and run a local Darpan development stack
+darpan — bootstrap and run a local Darpan development stack, and read your tenant's data
 
 Usage:
   darpan up [--dir <path>] [--reload]   Clone/update repos, load data, start the stack
@@ -480,6 +521,15 @@ Usage:
   darpan version                        Print CLI version
   darpan help                           Show this help
 
+Data and actions (sign in once with 'darpan login'; these run through Node 22.18+):
+  darpan login | logout | whoami | tenants | tenant use | api | call | systems | describe
+  darpan runs | run start|status|wait | result | audits | audit | report | findings | month export
+  darpan query run | scripts | script run|save|delete | deployments | deploy
+  darpan mcp                            Serve all of these as MCP tools (claude mcp add darpan -- darpan mcp)
+  darpan guide                          How to use them well: the usual path, limits, roles
+  Exit codes: 0 ok, 1 unreachable, 2 usage, 3 not signed in, 4 throttled, 5 failed, 7 not allowed.
+  There are no write commands against NetSuite, the OMS or Shopify.
+
 Workspace:
   Default ${HOME}/darpan, or \$DARPAN_HOME, or --dir.
   Backend: <workspace>/darpan-backend   UI: <workspace>/darpan-ui
@@ -491,6 +541,7 @@ Environment:
   DARPAN_BACKEND_PORT    Backend port (default 8080)
   DARPAN_FRONTEND_PORT   Frontend port (default 5173)
   DARPAN_REF_<NAME>      Override a repo's branch/tag, e.g. DARPAN_REF_DARPAN=2.0.0
+  DARPAN_CONFIG_DIR      Where darpan login keeps its sign-in (default ~/.config/darpan)
 
 URLs when running:
   UI    http://localhost:${FRONTEND_PORT}
@@ -499,6 +550,30 @@ EOF
 }
 
 cmd_version() { printf 'darpan %s\n' "$DARPAN_CLI_VERSION"; }
+
+# --------------------------------------------------------------------------
+# Agent commands (data and actions): the Node CLI in ../agent/main.ts.
+# $0 may be a symlink (Homebrew links bin/darpan into the prefix), so follow
+# links by hand; macOS sh has no readlink -f.
+# --------------------------------------------------------------------------
+resolve_self() {
+  p="$1"
+  while [ -h "$p" ]; do
+    d=$(cd "$(dirname "$p")" && pwd)
+    l=$(readlink "$p")
+    case "$l" in /*) p="$l" ;; *) p="$d/$l" ;; esac
+  done
+  printf '%s/%s\n' "$(cd "$(dirname "$p")" && pwd)" "$(basename "$p")"
+}
+
+run_agent() {
+  here=$(dirname "$(resolve_self "$0")")
+  if ! node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a===22&&b>=18)?0:1)' 2>/dev/null; then
+    echo "darpan $1 needs Node 22.18 or newer (found $(node --version 2>/dev/null || echo none))." >&2
+    exit 2
+  fi
+  exec node "$here/../agent/main.ts" "$@"
+}
 
 # --------------------------------------------------------------------------
 # Dispatch
@@ -513,6 +588,8 @@ case "$sub" in
   load)             cmd_load "$@" ;;
   update)           cmd_update "$@" ;;
   doctor)           cmd_doctor "$@" ;;
+  login|logout|whoami|tenants|tenant|api|call|systems|describe|runs|run|result|audits|audit|report|findings|month|query|scripts|script|deployments|deploy|mcp|guide)
+                    run_agent "$sub" "$@" ;;
   version|--version|-v) cmd_version ;;
   help|--help|-h)   cmd_help ;;
   *) err "unknown command: $sub"; cmd_help; exit 2 ;;

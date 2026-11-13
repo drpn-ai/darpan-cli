@@ -1,0 +1,294 @@
+[
+  {
+    "method": "facade.AgentFacadeServices.list#AgentQueryLogs",
+    "description": "List the fresh queries agents sent to this tenant's systems, newest first. Tenant admins only."
+  },
+  {
+    "method": "facade.AuditFacadeServices.get#AuditCheckExtracts",
+    "description": "What each system's read wrote for one check's morning: a row per side of the automation run, with the system, how many records it read and the file's data-manager path. Empty when the check did not run that morning, or ran before the run was kept."
+  },
+  {
+    "method": "facade.AuditFacadeServices.get#AuditCheckOptions",
+    "description": "What the add-a-check editor offers for one audit: its statements, the tenant's runs with their rules and conclusions, the row types and fix systems a check may name, and the audit's checks."
+  },
+  {
+    "method": "facade.AuditFacadeServices.get#AuditFinding",
+    "description": "One finding (darpan.audit.finding/v1): records, evidence, fix and history, as the assembler writes it."
+  },
+  {
+    "method": "facade.AuditFacadeServices.get#AuditFindingsByOrder",
+    "description": "Every open finding of one audit and period, one per order (an order's lines under it, the line holding it up named), each with its statement and category. State is as of today."
+  },
+  {
+    "method": "facade.AuditFacadeServices.get#AuditProgress",
+    "description": "DAR-UI-085. What the audit's checks are doing right now, for its page's Run health while a play or the morning run is going: each automation with a run in progress or queued, the checks it feeds, its stage and progress, and whether it looks healthy, slow or stuck (slow against its own last successful run). Cheap enough to poll; the page reloads the report when a check finishes."
+  },
+  {
+    "method": "facade.AuditFacadeServices.get#AuditReport",
+    "description": "An audit's report for one morning (darpan.audit.report/v1), as the assembler writes it."
+  },
+  {
+    "method": "facade.AuditFacadeServices.get#AuditSettings",
+    "description": "An audit's settings: its name, its daily schedule (the audit's own, DAR-BE-199: every check runs on it), and each statement with its checks and the run each check reads."
+  },
+  {
+    "method": "facade.AuditFacadeServices.get#Audits",
+    "description": "The active tenant's audits: id (the audit's code), name and the period it reports by."
+  },
+  {
+    "method": "facade.AuditFacadeServices.retry#AuditCheck",
+    "description": "DAR-UI-086. \"Retry from last read\": one check that did not run on one morning is run again from the extracts that morning's run already read (retry#AutomationExecutionFromExtracts), so no system is read again; its findings land on that morning's report. Refused, in words, when it ran already, has no run that morning, or a read did not finish (then play the audit)."
+  },
+  {
+    "method": "facade.AuditFacadeServices.run#Audit",
+    "description": "Play: runs every check of the audit now over the days picked, first to last inclusive (the tenant's zone), recording findings as the morning run does. Submitted to the background, one automation per run; the audit page shows the results as each finishes. Days in the period just ended record under that period (DAR-BE-178). Refused up front for days in the future or in a period ended before that."
+  },
+  {
+    "method": "facade.AuditFacadeServices.verify#AuditFinding",
+    "description": "Re-checks one finding's record now: its check runs for that record only, each system read by key, and the ledger closes the finding if the problem is gone or refreshes it with today's cause. Submitted to the background; get#AuditFinding shows the result once lastChecked moves. Writes no check run, so the check's health and its next read are unchanged."
+  },
+  {
+    "method": "facade.AuthFacadeServices.get#SessionInfo",
+    "description": "Return session metadata for darpan-ui route guards. Moqui resolves the request user from the explicit `login_key` header when present."
+  },
+  {
+    "method": "facade.CliAuthFacadeServices.logout#CliSession",
+    "description": "Sign the calling CLI out: revokes the CLI session whose key this request carries."
+  },
+  {
+    "method": "facade.ConfigSharingFacadeServices.list#ConfigTenantAccess",
+    "description": "Sharing state for one config: owning tenant, peer tenants, the affected-tenant count for the edit warning, and whether the caller may manage the group."
+  },
+  {
+    "method": "facade.HotWaxOmsFacadeServices.get#OmsGraphqlSchema",
+    "description": "DAR-CLI-003. The HotWax OMS GraphQL schema a tenant's agent can ask about, trimmed to the types reachable from the Query root (names, kinds, fields, arguments, enum values and descriptions; mutations and subscriptions left out). Read from the OMS once and kept 24 hours per connection. Needs view access."
+  },
+  {
+    "method": "facade.HotWaxOmsFacadeServices.list#HotWaxOmsRestSourceConfigs",
+    "description": "List OMS source configurations available to the active tenant."
+  },
+  {
+    "method": "facade.HotWaxOmsFacadeServices.run#OmsGraphqlAgentQuery",
+    "description": "DAR-CLI-003. Runs one fresh, read-only GraphQL query a tenant user's agent wrote, through a HotWax OMS connection the active tenant stores. One query only (no mutation, subscription or introspection); the answer is returned as the OMS gave it, up to 5 MB; the connection's credentials are never returned. Needs run access. Every call is logged for the tenant."
+  },
+  {
+    "method": "facade.JsonSchemaFacadeServices.get#JsonSchema",
+    "description": "Get a single JSON schema including schemaText."
+  },
+  {
+    "method": "facade.JsonSchemaFacadeServices.list#JsonSchemas",
+    "description": "List active JSON schemas with pagination for darpan-ui browse page."
+  },
+  {
+    "method": "facade.NetSuiteLifecycleFacadeServices.get#LifecycleOptions",
+    "description": "What the lifecycle builder may offer for one NetSuite account: record types with records in the last 30 days, and, given a record type, what follows it in NetSuite's link table over a settled week, with how many reached each follower, how soon, and the share done by each of a few days."
+  },
+  {
+    "method": "facade.NetSuiteLifecycleFacadeServices.get#LifecycleRuleOptions",
+    "description": "DAR-UI-050. What a lifecycle rule may name: the text fields NetSuite shows on the record type, by their own names, and, given one, the values it holds over the last 30 days, most common first, with an empty value as NO_VALUE (\"No value\")."
+  },
+  {
+    "method": "facade.NetSuiteQueryFacadeServices.get#NsSuiteQlQueryOptions",
+    "description": "DAR-UI-064. What the SuiteQL query editor offers: templates, date columns, common record types, the fields and operators a match rule may use, and the NetSuite accounts the active tenant may read."
+  },
+  {
+    "method": "facade.NetSuiteQueryFacadeServices.get#NsSuiteQlSourceQuery",
+    "description": "One check definition with its full column projection, for editing."
+  },
+  {
+    "method": "facade.NetSuiteQueryFacadeServices.list#NsAgentConnections",
+    "description": "DAR-CLI-003. The NetSuite connections the active tenant may query from an agent: id, description and sign-in kind only. No username, client id, certificate id, account host, key or token."
+  },
+  {
+    "method": "facade.NetSuiteQueryFacadeServices.list#NsSuiteQlSourceQueries",
+    "description": "NetSuite SuiteQL check definitions the active tenant can see, paged. Paged like every other list service (pageIndex/pageSize in, a pagination block out), so a caller gets a bounded page and the total instead of every row at once."
+  },
+  {
+    "method": "facade.NetSuiteQueryFacadeServices.preview#NsSuiteQlSourceQuery",
+    "description": "DAR-UI-064. Runs a query as submitted (nothing is saved) against NetSuite for one day and answers its first rows as records with the SuiteQL sent. Read-only, one page. Same validation as save."
+  },
+  {
+    "method": "facade.NetSuiteQueryFacadeServices.run#NsSuiteQlAgentQuery",
+    "description": "DAR-CLI-003. Runs one fresh, read-only SuiteQL query a tenant user's agent wrote, through a NetSuite connection the active tenant stores. One SELECT or WITH statement; 200 rows by default, 2,000 at most; the connection's credentials are never returned. Every call is logged for the tenant."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.cancel#ReconciliationRun",
+    "description": "Ask a running reconciliation to stop. Tenant-gated. Cancellation is cooperative: this records the request and the run ends itself AUT_STAT_CANCELLED at its next checkpoint (a stage boundary, or an extract progress tick during a long paged extract), so the run may still report RUNNING for a few seconds after this returns."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.get#ActiveRunResult",
+    "description": "DAR-BE-146. The newest run of a saved run still pending or running that began in the last two minutes, in the active tenant; empty when there is none. run#SavedRunDiff answers only when its run ends, so the run page asks this right after Run to open the live view."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.get#Automation",
+    "description": "Get one tenant-scoped automation with editable source rows and dashboard summary fields. An automation an audit's checks run through names it (audit: {code, name}, DAR-BE-199) and cannot be paused or resumed by itself."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.get#AutomationStreaks",
+    "description": "DAR-BE-107. The active tenant's clean-day streaks: each automation's live and best streak in days, on its own midnight, and the badges it has earned; the tenant streak (the shortest live streak of its active scheduled automations); and the side quests the tenant has found. Read-only: slots not yet stored are folded in memory, so the numbers are current before an automation's next run."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.get#GeneratedOutput",
+    "description": "Retrieve a scoped generated diff output for direct download from darpan-ui."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.get#GeneratedOutputDifferences",
+    "description": "Return a bounded page of a JSON diff document's differences (plus whole-document facets, effective summary, metadata, and a download descriptor WITHOUT the file body) so darpan-ui can render large reconciliation results without loading the entire file. Audit #21."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.get#LifecyclePlan",
+    "description": "DAR-UI-050. The places a lifecycle's stages in this order would make, named as save#LifecycleStages names them, without saving: the settings page shows them while the order is being changed. Reads nothing."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.get#Mapping",
+    "description": "Load one mapping with editable schema and field details for darpan-ui settings workflows."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.get#Reconciliation",
+    "description": "DAR-UI-048. A run and its questions, in the active tenant."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.get#ReconciliationExecution",
+    "description": "DAR-UI-048. Every question's result row from one press of Run, in the active tenant."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.get#ReconciliationRunStatus",
+    "description": "Live status + per-stage timeline for one reconciliation run. Tenant-gated."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.list#AutomationExecutions",
+    "description": "List execution history for the active tenant, optionally filtered to one automation."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.list#Automations",
+    "description": "List tenant-scoped reconciliation automations with dashboard-ready saved-run, source, schedule, last-execution, and permission summaries."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.list#GeneratedOutputs",
+    "description": "List generated reconciliation diff outputs within the current active-tenant scope."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.list#Mappings",
+    "description": "List mapping options and their system pairs for darpan-ui generic diff flow."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.list#ReconciliationExecutions",
+    "description": "DAR-UI-048. A run's past executions, newest first: one entry per press of Run."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.list#Reconciliations",
+    "description": "DAR-UI-048. The active tenant's runs (flowcharts), archived ones left out."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.list#SavedRuns",
+    "description": "List saved runs across legacy mappings and RuleSet-backed CSV runs."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.run#AutomationNow",
+    "description": "Run one automation immediately after active-tenant ownership and run-permission validation."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.run#GenericDiff",
+    "description": "Run the generic diff flow using text-based file payloads suitable for darpan-ui JSON-RPC calls."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.run#Reconciliation",
+    "description": "DAR-UI-048. Start a run's flowchart. Returns at once with the execution id; the walk runs in the background and get#ReconciliationExecution follows it."
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.run#SavedRunDiff",
+    "description": "Run a saved reconciliation flow backed by either a legacy mapping or a RuleSet compare scope."
+  },
+  {
+    "method": "facade.RunConclusionFacadeServices.get#RunConclusions",
+    "description": "A run's conclusion tree in order, the conclusion catalog, and the condition vocabulary (buckets, operators, presence, key scopes, quantifiers)."
+  },
+  {
+    "method": "facade.SearchFacadeServices.search#NavigationTargets",
+    "description": "Search authorized Darpan records and return normalized navigation targets for Ask Darpan."
+  },
+  {
+    "method": "facade.SettingsFacadeServices.get#LlmSettings",
+    "description": "Get LLM provider settings with stored-secret indicators."
+  },
+  {
+    "method": "facade.SettingsFacadeServices.get#TenantSettings",
+    "description": "Get active-tenant settings shared by users in the tenant."
+  },
+  {
+    "method": "facade.SettingsFacadeServices.get#UserNotificationDefault",
+    "description": "Get the caller's default chat space for the active tenant; stale or inactive pointers read as not configured."
+  },
+  {
+    "method": "facade.SettingsFacadeServices.list#EnumOptions",
+    "description": "List enum options for frontend dropdowns using fallback-friendly labels."
+  },
+  {
+    "method": "facade.SettingsFacadeServices.test#SourceConnection",
+    "description": "Run connection diagnostics against a saved connector config, using only the stored credentials. Dispatched off the SourceSystemConnector registry, so core names no connector. `ok` reports that the diagnostic ran; `connectionOk` reports the verdict."
+  },
+  {
+    "method": "facade.ShopifyFacadeServices.get#ShopifyAuthConfig",
+    "description": "Get one Shopify auth config for the active tenant with the access token redacted."
+  },
+  {
+    "method": "facade.ShopifyFacadeServices.list#ShopifyAuthConfigs",
+    "description": "List Shopify auth configs for the active tenant with secret redaction indicators."
+  },
+  {
+    "method": "facade.ShopifyFacadeServices.get#ShopifyGraphqlSchema",
+    "description": "DAR-CLI-003. The Shopify Admin GraphQL schema a tenant's agent can ask about, trimmed to the types reachable from the Query root (names, kinds, fields, arguments, enum values and descriptions; mutations and subscriptions left out). Read from Shopify once and kept 24 hours per connection. Needs view access."
+  },
+  {
+    "method": "facade.ShopifyFacadeServices.run#ShopifyGraphqlAgentQuery",
+    "description": "DAR-CLI-003. Runs one fresh, read-only GraphQL query a tenant user's agent wrote, through a Shopify connection the active tenant stores. One query only (no mutation, subscription or introspection); the answer is returned as Shopify gave it, up to 5 MB, or refused with advice when larger; the connection's access token is never returned. Needs run access. Every call is logged for the tenant."
+  },
+  {
+    "method": "facade.SlackFacadeServices.get#SlackInstall",
+    "description": "The active tenant's connected Slack workspaces. Returns identity and granted scopes only — never the bot token."
+  },
+  {
+    "method": "facade.SlackFacadeServices.list#SlackChannels",
+    "description": "One page of channels from a connected workspace, for the chat-space channel picker. Paginated rather than exhaustive: conversations.list is rate-limit Tier 2 and a large workspace has thousands of channels."
+  },
+  {
+    "method": "facade.SourceEndpointFacadeServices.list#SourceConfigEndpoints",
+    "description": "Endpoints registered for this config type, each with its current enablement. The catalog comes from SourceSystemConnector; access rows only supply isEnabled."
+  },
+  {
+    "method": "facade.TenantConfigFacadeServices.get#TenantConfigVersions",
+    "description": "The active tenant's config versions, newest first, without their packs."
+  },
+  {
+    "method": "facade.TenantScriptFacadeServices.delete#TenantScript",
+    "description": "Delete one of the active tenant's scripts. Needs edit access to the tenant."
+  },
+  {
+    "method": "facade.TenantScriptFacadeServices.delete#TenantScriptDeployment",
+    "description": "Delete one of the active tenant's script deployments. Needs edit access to the tenant."
+  },
+  {
+    "method": "facade.TenantScriptFacadeServices.list#TenantScriptDeployments",
+    "description": "The active tenant's script deployments, optionally for one script."
+  },
+  {
+    "method": "facade.TenantScriptFacadeServices.list#TenantScripts",
+    "description": "The active tenant's scripts by name, plus the d: library and the limits, for the editor."
+  },
+  {
+    "method": "facade.TenantScriptFacadeServices.run#TenantScript",
+    "description": "Runs a script and returns what it gave back; writes nothing. Either a saved script (tenantScriptId) or an unsaved draft (scriptBody + scriptProfile; these also override a saved script's, so the editor can try an edit before saving). The input is read first, then the script runs with no transaction open. A script error is a result (run.ok false, run.error), not a service error. Needs edit access to the tenant."
+  },
+  {
+    "method": "facade.TenantScriptFacadeServices.run#TenantScriptDeployment",
+    "description": "Runs a saved deployment now, exactly as the schedule would (the script's newest input, its chat space). send=false (the default) is a preview: the text comes back and nothing is posted or recorded. send=true posts it and stamps the outcome on the deployment. Needs edit access to the tenant."
+  },
+  {
+    "method": "facade.TenantScriptFacadeServices.save#TenantScript",
+    "description": "Create or update one of the active tenant's scripts. The body must parse under its profile and run cleanly on its sample input; a script that does not is refused with the line, never saved half-checked. No transaction is open while the trial run runs; the store opens its own. Needs edit access to the tenant."
+  },
+  {
+    "method": "facade.TenantScriptFacadeServices.save#TenantScriptDeployment",
+    "description": "Create or update a deployment of one of the active tenant's scripts. The schedule must be a cron the scheduler understands; the chat space must be the tenant's and switched on; a script that reads a run result needs the saved run. A deployment that is on gets its next run date. Needs edit access to the tenant."
+  }
+]
