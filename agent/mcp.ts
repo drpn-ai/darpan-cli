@@ -16,12 +16,12 @@ const EXCLUDED = new Set(['login', 'logout', 'tenant use'])
  *  sits in exactly one set (a test enforces it), so a new command cannot slip in looking read-only. */
 export const READ_ONLY = new Set(['whoami', 'tenants', 'api', 'systems', 'describe', 'runs', 'run status', 'run wait', 'result',
   'audits', 'report', 'findings list', 'findings show', 'findings by-order', 'audit progress', 'audit settings',
-  'audit extracts', 'month export', 'query run', 'scripts', 'script run', 'deployments', 'deploy preview'])
+  'audit extracts', 'conclusions show', 'month export', 'query run', 'scripts', 'script run', 'deployments', 'deploy preview'])
 /** Adds or acts without overwriting or removing anything: starts a run, re-checks a finding, posts a deployment now. */
-export const ADDITIVE = new Set(['run start', 'findings recheck', 'deploy send'])
+export const ADDITIVE = new Set(['run start', 'findings recheck', 'deploy send', 'conclusions code'])
 /** Can overwrite or remove: `call` reaches any allowlisted method, writes included; `deploy --id` overwrites a
  *  deployment and, without --on, switches it off. */
-export const DESTRUCTIVE = new Set(['call', 'script save', 'script delete', 'deploy', 'deploy off', 'deploy delete'])
+export const DESTRUCTIVE = new Set(['call', 'script save', 'script delete', 'deploy', 'deploy off', 'deploy delete', 'conclusions save', 'automation sync'])
 
 export function annotationsFor(command: Command) {
   if (READ_ONLY.has(command.name)) return { readOnlyHint: true }

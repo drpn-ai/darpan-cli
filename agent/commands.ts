@@ -1331,10 +1331,181 @@ const deploySend: Command = {
   run: (ctx, args) => runDeployment(ctx, args.id, true, ['SENT', 'NOTHING_TO_SEND']),
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// DAR-CLI-007 (Aditi 2026-11-21): a run's conclusion tree, its tenant codes, and an automation synced with its run.
+// Both writers preview by default and write only with --yes; the server checks tenant write access either way.
+// ---------------------------------------------------------------------------------------------------------------
+const CONCLUSIONS = 'facade.RunConclusionFacadeServices'
+const MAX_TREE = 500_000
+/** The node fields save#RunConclusions reads; `label` is the code's name, shown by `show`, never sent back. */
+const NODE_FIELDS = ['key', 'parent', 'conclusion', 'bucket', 'question', 'fix', 'outcome', 'engine', 'suggestedFilterJson', 'conditions'] as const
+const CONDITION_FIELDS = ['subject', 'presence', 'keyScope', 'quantifier', 'field', 'operator', 'values', 'checkLabel'] as const
+
+const savedRunIdOf = (value: unknown, command: string): string => {
+  const id = text(value)
+  if (!id || value === true) throw usageError(`${command} needs a savedRunId.`, 'run `darpan runs`, or `darpan audit settings` for a check\'s run')
+  return id
+}
+
+const pick = (row: Row, fields: readonly string[]): Row => Object.fromEntries(fields.filter((f) => row[f] !== undefined).map((f) => [f, row[f]]))
+
+/** A node as save#RunConclusions takes it, so `show` output saves back unchanged. */
+function nodeForSave(node: Row): Row {
+  const out = pick(node, NODE_FIELDS)
+  out.conditions = asRows(node.conditions).map((c) => pick(c, CONDITION_FIELDS))
+  return out
+}
+
+/** What a saved tree would change, node by node, keyed by `key`. */
+export function treeChanges(before: Row[], after: Row[]): { added: Row[]; removed: Row[]; changed: Row[]; unchanged: number } {
+  const keyOf = (n: Row) => String(n.key ?? '')
+  const old = new Map(before.map((n) => [keyOf(n), nodeForSave(n)]))
+  const now = new Map(after.map((n) => [keyOf(n), nodeForSave(n)]))
+  const added: Row[] = []
+  const changed: Row[] = []
+  let unchanged = 0
+  for (const [key, node] of now) {
+    const prior = old.get(key)
+    if (!prior) { added.push(node); continue }
+    const fields = [...new Set([...Object.keys(prior), ...Object.keys(node)])].filter((f) => JSON.stringify(prior[f] ?? null) !== JSON.stringify(node[f] ?? null))
+    if (fields.length === 0) unchanged += 1
+    else changed.push({ key, fields: Object.fromEntries(fields.map((f) => [f, { from: prior[f] ?? null, to: node[f] ?? null }])) })
+  }
+  const removed = [...old.entries()].filter(([key]) => !now.has(key)).map(([, node]) => node)
+  return { added, removed, changed, unchanged }
+}
+
+async function readTree(ctx: Ctx, savedRunId: string): Promise<Row> {
+  const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>(`${CONCLUSIONS}.get#RunConclusions`, { savedRunId })
+  return rest
+}
+
+const conclusionsShow: Command = {
+  name: 'conclusions show',
+  summary: 'conclusions show <savedRunId>          a run\'s conclusion tree, in the shape `conclusions save` takes',
+  description:
+    'A run\'s conclusion tree in order: each node\'s key, parent, cause code and its label, bucket, fix text, outcome (EXPECTED/HIDE) and conditions, plus the run\'s lookups, the tenant\'s cause catalog and the condition vocabulary (buckets, operators, presence, key scopes, quantifiers). Save the `conclusions` list to a file, edit it, and give it to `conclusions save`. Read only.',
+  input: { type: 'object', properties: { savedRunId: { type: 'string', description: 'The run, e.g. RS_100515; `darpan audit settings` names each check\'s run' } }, required: ['savedRunId'] },
+  tenant: 'required',
+  positional: ['savedRunId'],
+  async run(ctx, args) {
+    const savedRunId = savedRunIdOf(args.savedRunId, 'conclusions show')
+    const got = await readTree(ctx, savedRunId)
+    return (got.conclusions ?? got) as Row
+  },
+}
+
+const conclusionsSave: Command = {
+  name: 'conclusions save',
+  summary: 'conclusions save <savedRunId> (--file <json> | --tree <json>) [--yes]   replace a run\'s conclusion tree',
+  description:
+    'Replaces a run\'s whole conclusion tree with the one given: the `conclusions` list from `conclusions show` (or that whole document), edited. Without --yes it only answers what would change, node by node (added, removed, changed fields); with --yes it saves. A node keeps its outcome, engine and suggested filter when it leaves them out (same key, same cause). Lookups and the Unexplained setting are left as they are. An empty tree is refused: clear a tree in the app. Changes are read by the next run; no sync is needed. Needs editor or admin.',
+  input: {
+    type: 'object',
+    properties: {
+      savedRunId: { type: 'string', description: 'The run, e.g. RS_100515' },
+      file: { type: 'string', description: 'Path of a JSON file holding the tree (CLI only)' },
+      tree: { type: 'string', description: 'The tree as JSON text: a list of nodes, or an object with a conclusions list' },
+      yes: { type: 'boolean', description: 'Save it; without this only the changes are answered' },
+    },
+    required: ['savedRunId'],
+  },
+  tenant: 'required',
+  positional: ['savedRunId'],
+  cliOnly: ['file'],
+  async run(ctx, args) {
+    const savedRunId = savedRunIdOf(args.savedRunId, 'conclusions save')
+    const raw = textInput(ctx, 'file', 'tree', args, MAX_TREE, 'conclusion tree')
+    if (raw === undefined) throw usageError('conclusions save needs --file <json> or --tree <json>.', `start from: darpan conclusions show ${savedRunId} > tree.json`)
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      throw usageError('The tree is not valid JSON.', `start from: darpan conclusions show ${savedRunId}`)
+    }
+    const list = Array.isArray(parsed) ? parsed : Array.isArray((parsed as Row)?.conclusions) ? (parsed as Row).conclusions : null
+    if (!Array.isArray(list)) throw usageError('The tree must be a list of nodes, or an object with a conclusions list.', `start from: darpan conclusions show ${savedRunId}`)
+    if (list.length === 0) throw usageError('An empty tree would clear every cause of the run; that is done in the app, not here.', 'give the nodes to keep')
+    const nodes = (list as unknown[]).map((n, i) => {
+      if (!n || typeof n !== 'object' || Array.isArray(n)) throw usageError(`Node ${i + 1} is not an object.`, 'each node is {key, parent, conclusion, ...}')
+      return nodeForSave(n as Row)
+    })
+    const before = asRows(((await readTree(ctx, savedRunId)).conclusions as Row | undefined)?.conclusions)
+    const changes = treeChanges(before, nodes)
+    if (changes.added.length + changes.removed.length + changes.changed.length === 0) return { savedRunId, saved: false, note: 'Nothing would change.', ...changes }
+    if (args.yes !== true) return { savedRunId, saved: false, preview: true, ...changes, next: 'run it again with --yes to save' }
+    await ctx.session.call<Row>(`${CONCLUSIONS}.save#RunConclusions`, { savedRunId, conclusions: nodes })
+    return { savedRunId, saved: true, ...changes, next: `darpan conclusions show ${savedRunId}` }
+  },
+}
+
+const conclusionsCode: Command = {
+  name: 'conclusions code',
+  summary: 'conclusions code --label <text>         make a cause code of the tenant\'s own',
+  description:
+    'Makes a cause code for the tenant, named by its label, for a new node in `conclusions save` (its `conclusion`). Refused when the tenant\'s catalog already has the label; `conclusions show` lists the catalog. Needs editor or admin.',
+  input: { type: 'object', properties: { label: { type: 'string', description: 'The cause as the audit shows it, e.g. "Sold in store; NetSuite has no stock at that store"' } }, required: ['label'] },
+  tenant: 'required',
+  async run(ctx, args) {
+    const label = text(args.label)
+    if (!label || args.label === true) throw usageError('conclusions code needs --label <text>.', 'example: --label "Backordered at the store"')
+    const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>(`${CONCLUSIONS}.create#RunConclusionCode`, { label })
+    return rest
+  },
+}
+
+const FILTER_KEYS = ['fieldExpression', 'operator', 'values'] as const
+const filtersOf = (value: unknown) => asRows(value).map((f) => pick(f, FILTER_KEYS))
+
+const automationSync: Command = {
+  name: 'automation sync',
+  summary: 'automation sync <automationId> [--yes]  copy a run\'s sources and filters onto its automation',
+  description:
+    'An automation keeps its own copy of its run\'s sources and exclusion filters, so a run edit (or a config transfer) does not reach the scheduled or audit run until the automation is synced. Without --yes it answers whether the automation is in sync, which parts would change, and both sides\' filters (the automation\'s and the run\'s), so a filter the run has lost is seen before it is overwritten; with --yes it syncs. Name, schedule, window and chat space are kept. Needs editor or admin.',
+  input: {
+    type: 'object',
+    properties: {
+      automationId: { type: 'string', description: 'The automation, e.g. 100513; `darpan call facade.ReconciliationFacadeServices.list#Automations` lists them' },
+      yes: { type: 'boolean', description: 'Sync it; without this only the comparison is answered' },
+    },
+    required: ['automationId'],
+  },
+  tenant: 'required',
+  positional: ['automationId'],
+  async run(ctx, args) {
+    const automationId = text(args.automationId)
+    if (!automationId || args.automationId === true) throw usageError('automation sync needs an automationId.', 'list them with `darpan call facade.ReconciliationFacadeServices.list#Automations`')
+    const got = await ctx.session.call<Row>(`${RECON}.get#Automation`, { automationId })
+    const automation = (got.automation ?? {}) as Row
+    const status = (got.syncStatus ?? automation.syncStatus ?? {}) as Row
+    const run = (automation.savedRun ?? {}) as Row
+    const sources = asRows(automation.sources)
+    const filters = ['FILE_1', 'FILE_2'].map((side, i) => ({
+      side,
+      automation: filtersOf(sources.find((s) => s.fileSide === side)?.excludeFilters ?? sources[i]?.excludeFilters),
+      run: filtersOf(run[`file${i + 1}ExcludeFilters`]),
+    })).filter((f) => f.automation.length > 0 || f.run.length > 0)
+    const summary = {
+      automationId,
+      name: text(automation.automationName),
+      savedRunId: text(automation.savedRunId) ?? text(run.savedRunId),
+      inSync: status.inSync === true,
+      changedFields: Array.isArray(status.changedFields) ? status.changedFields : [],
+      filters,
+    }
+    if (status.savedRunMissing === true) throw new CliError('This automation\'s saved run is no longer available, so it cannot be synced.', EXIT.failed, 'fix the automation in the app')
+    if (summary.inSync) return { ...summary, synced: false, note: 'Already in sync with its run.' }
+    if (args.yes !== true) return { ...summary, synced: false, preview: true, next: 'check each side\'s filters, then run it again with --yes' }
+    const synced = await ctx.session.call<Row>(`${RECON}.sync#Automation`, { automationId })
+    return { ...summary, synced: true, changedFields: synced.changedFields ?? summary.changedFields }
+  },
+}
+
 export const COMMANDS: Command[] = [
   login, logout, whoami, tenants, tenantUse, api, call,
   systems, describe, runs, runStart, runStatusCommand, runWait, result, audits, report, findingsList, findingsShow, findingsByOrder, findingsRecheck, monthExport,
   auditProgress, auditSettings, auditExtracts,
+  conclusionsShow, conclusionsSave, conclusionsCode, automationSync,
   queryRun, scripts, scriptRun, scriptSave, scriptDelete, deployments, deploy, deployOff, deployDelete, deployPreview, deploySend,
 ]
 

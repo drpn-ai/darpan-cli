@@ -4,6 +4,10 @@
     "description": "List the fresh queries agents sent to this tenant's systems, newest first. Tenant admins only."
   },
   {
+    "method": "facade.AppContentFacadeServices.get#AppContent",
+    "description": "The mascot entries an admin has edited, hidden or created: every SEED row with a title, body, alias or hidden edit, and every ADMIN row. Fields that are not set are omitted. version is a stable hash of the entries returned, so it changes on every create, edit, reset, delete or seed retirement that changes what is served (null when nothing is served)."
+  },
+  {
     "method": "facade.AuditFacadeServices.get#AuditCheckExtracts",
     "description": "What each system's read wrote for one check's morning: a row per side of the automation run, with the system, how many records it read and the file's data-manager path. Empty when the check did not run that morning, or ran before the run was kept."
   },
@@ -22,6 +26,10 @@
   {
     "method": "facade.AuditFacadeServices.get#AuditProgress",
     "description": "DAR-UI-085. What the audit's checks are doing right now, for its page's Run health while a play or the morning run is going: each automation with a run in progress or queued, the checks it feeds, its stage and progress, and whether it looks healthy, slow or stuck (slow against its own last successful run). Cheap enough to poll; the page reloads the report when a check finishes."
+  },
+  {
+    "method": "facade.AuditFacadeServices.get#AuditReadReport",
+    "description": "What one play of an audit read: its reads grouped by endpoint and connection (reads, records, the checks that read, each read's window, the call tally), the totals, and the flags where a read cost more than it needed (DUPLICATE_READ, WHOLE_PERIOD_READ, LOOKUP_OVER_SHARE, LOOKUP_EVERY_PLAY, THROTTLED, CALLS_GREW; thresholds are the Audit reads settings). Empty when the audit has not played (darpan.audit.AuditReadReport)."
   },
   {
     "method": "facade.AuditFacadeServices.get#AuditReport",
@@ -112,6 +120,26 @@
     "description": "DAR-CLI-003. Runs one fresh, read-only SuiteQL query a tenant user's agent wrote, through a NetSuite connection the active tenant stores. One SELECT or WITH statement; 200 rows by default, 2,000 at most; the connection's credentials are never returned. Every call is logged for the tenant."
   },
   {
+    "method": "facade.PeakPeriodFacadeServices.get#PeakPeriod",
+    "description": "One peak period with its run-time moves, the runs its peak hours or a sync lag allowance hold, and the runs a move can name."
+  },
+  {
+    "method": "facade.PeakPeriodFacadeServices.list#PeakPeriods",
+    "description": "List the active tenant's peak periods with their state (upcoming, on, off, ended) in the tenant's local today."
+  },
+  {
+    "method": "facade.SyncPulseFacadeServices.get#RunPulseFlags",
+    "description": "The records of one daily-check run that the sync pulse had already flagged past allowance before the run started and that were still open then: recordKey to the ISO time the pulse first flagged it. syncPairId is the run's sync pair; null with no flags when the run's check has no pair."
+  },
+  {
+    "method": "facade.SyncPulseFacadeServices.get#SyncPair",
+    "description": "One sync pair of the active tenant: its effective allowance and cadence today (and the pair's own values), today's samples and the open past-allowance orders, oldest first. Always returns the daily checks and chat spaces the pair form picks from; with no syncPairId that is all it returns."
+  },
+  {
+    "method": "facade.SyncPulseFacadeServices.list#SyncPairs",
+    "description": "List the active tenant's sync pairs with the waiting and past-allowance counts from the latest sample and the open orders."
+  },
+  {
     "method": "facade.ReconciliationFacadeServices.cancel#ReconciliationRun",
     "description": "Ask a running reconciliation to stop. Tenant-gated. Cancellation is cooperative: this records the request and the run ends itself AUT_STAT_CANCELLED at its next checkpoint (a stage boundary, or an extract progress tick during a long paged extract), so the run may still report RUNNING for a few seconds after this returns."
   },
@@ -200,8 +228,20 @@
     "description": "Run a saved reconciliation flow backed by either a legacy mapping or a RuleSet compare scope."
   },
   {
+    "method": "facade.ReconciliationFacadeServices.sync#Automation",
+    "description": "Re-derive an automation's snapshot from its saved run. Overwrites the compare scope, input mode, both source definitions and the exclusion filters; preserves the name, schedule, window, chat space, active status, and the SFTP server, path and pattern the run cannot supply. Never re-points the automation at a different run. Writes nothing directly: it derives, merges the result over the stored source rows, and delegates to save#Automation, which already deletes and recreates every source and filter row on each save. That inherits the whole save path (validateSources, validateApiSource, applyApiSourceMetadataDefaults, tenant stamping, the response builder) rather than growing a second writer that would drift from it."
+  },
+  {
+    "method": "facade.RunConclusionFacadeServices.create#RunConclusionCode",
+    "description": "Makes a conclusion code of the active tenant's own, named by label; only that tenant's catalog lists it. Refused when the catalog already has the label."
+  },
+  {
     "method": "facade.RunConclusionFacadeServices.get#RunConclusions",
     "description": "A run's conclusion tree in order, the conclusion catalog, and the condition vocabulary (buckets, operators, presence, key scopes, quantifiers)."
+  },
+  {
+    "method": "facade.RunConclusionFacadeServices.save#RunConclusions",
+    "description": "Replaces a run's conclusion tree: [{key, parent, conclusion, bucket, question, outcome, engine, suggestedFilterJson, conditions: [{subject, presence, keyScope, quantifier, field, operator, values, checkLabel}]}]. All or nothing; an empty list clears it, absent keeps it (DAR-BE-198: lookups can be set alone). A node that does not name outcome (HIDE, EXPECTED), engine (BRAIN) or suggestedFilterJson keeps its rule's: same key, same conclusion."
   },
   {
     "method": "facade.SearchFacadeServices.search#NavigationTargets",
@@ -210,6 +250,10 @@
   {
     "method": "facade.SettingsFacadeServices.get#LlmSettings",
     "description": "Get LLM provider settings with stored-secret indicators."
+  },
+  {
+    "method": "facade.SettingsFacadeServices.get#NotificationRoutes",
+    "description": "DAR-UI-123. The active tenant's chat spaces and, for each thing that posts to chat, the one space it posts to: the streaks messages, each audit's run update, each automation (paused ones too, archived ones not) and each deployed script. Notify-me subscriptions and each user's default space are personal and not listed."
   },
   {
     "method": "facade.SettingsFacadeServices.get#TenantSettings",
