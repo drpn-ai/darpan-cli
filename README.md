@@ -112,6 +112,17 @@ Release flow (automated by `.github/workflows/release.yml`):
 1. In `drpn-ai/darpan-cli`, push a tag: `git tag v0.1.0 && git push origin v0.1.0`.
 2. The `release` workflow runs `scripts/package.sh`, attaches `darpan-0.1.0.tar.gz` to a GitHub release, and prints the `url` / `sha256` / `version` in the job summary.
 3. Paste those into `Formula/darpan.rb` in `drpn-ai/homebrew-tap` and commit.
+   Then build the one bottle every platform pours (an install from a bottle skips Homebrew's build checks, so it never needs Xcode or the Command Line Tools, which a macOS beta refuses to build with when they are older). After pushing the url/sha256 bump:
+   ```bash
+   export HOMEBREW_NO_AUTOREMOVE=1   # uninstalling darpan would otherwise remove packages only darpan pulled in
+   brew uninstall darpan; brew trust --formula drpn-ai/tap/darpan   # uninstall drops the formula's trust
+   brew install --build-bottle drpn-ai/tap/darpan
+   brew bottle --no-rebuild --json --root-url=https://github.com/drpn-ai/darpan-cli/releases/download/v<X.Y.Z> drpn-ai/tap/darpan
+   # the files are platform-free, so tag it all; the download URL uses ONE dash (darpan-<X.Y.Z>…), the local file two
+   mv darpan--<X.Y.Z>.*.bottle.tar.gz darpan-<X.Y.Z>.all.bottle.tar.gz
+   gh release upload v<X.Y.Z> darpan-<X.Y.Z>.all.bottle.tar.gz --repo drpn-ai/darpan-cli
+   ```
+   Put `bottle do root_url "…/v<X.Y.Z>"; sha256 cellar: :any_skip_relocation, all: "<sha256 of that file>" end` in the formula and push. A new release asset can 404 for about a minute. `brew install darpan` then says **Pouring darpan-<X.Y.Z>.all.bottle.tar.gz**.
 4. Users: `brew tap drpn-ai/tap && brew trust --formula drpn-ai/tap/darpan && brew install darpan`.
 
 Build a tarball locally without CI:

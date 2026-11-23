@@ -1454,14 +1454,11 @@ const conclusionsCode: Command = {
   },
 }
 
-const FILTER_KEYS = ['fieldExpression', 'operator', 'values'] as const
-const filtersOf = (value: unknown) => asRows(value).map((f) => pick(f, FILTER_KEYS))
-
 const automationSync: Command = {
   name: 'automation sync',
-  summary: 'automation sync <automationId> [--yes]  copy a run\'s sources and filters onto its automation',
+  summary: 'automation sync <automationId> [--yes]  copy a run\'s sources onto its automation',
   description:
-    'An automation keeps its own copy of its run\'s sources and exclusion filters, so a run edit (or a config transfer) does not reach the scheduled or audit run until the automation is synced. Without --yes it answers whether the automation is in sync, which parts would change, and both sides\' filters (the automation\'s and the run\'s), so a filter the run has lost is seen before it is overwritten; with --yes it syncs. Name, schedule, window and chat space are kept. Needs editor or admin.',
+    'An automation keeps its own copy of its run\'s sources, so a source edit on the run (or a config transfer) does not reach the scheduled or audit run until the automation is synced. Filters are not copied: every run of the automation reads its run\'s filters. Without --yes it answers whether the automation is in sync and which parts would change; with --yes it syncs. Name, schedule, window and chat space are kept. Needs editor or admin.',
   input: {
     type: 'object',
     properties: {
@@ -1479,23 +1476,16 @@ const automationSync: Command = {
     const automation = (got.automation ?? {}) as Row
     const status = (got.syncStatus ?? automation.syncStatus ?? {}) as Row
     const run = (automation.savedRun ?? {}) as Row
-    const sources = asRows(automation.sources)
-    const filters = ['FILE_1', 'FILE_2'].map((side, i) => ({
-      side,
-      automation: filtersOf(sources.find((s) => s.fileSide === side)?.excludeFilters ?? sources[i]?.excludeFilters),
-      run: filtersOf(run[`file${i + 1}ExcludeFilters`]),
-    })).filter((f) => f.automation.length > 0 || f.run.length > 0)
     const summary = {
       automationId,
       name: text(automation.automationName),
       savedRunId: text(automation.savedRunId) ?? text(run.savedRunId),
       inSync: status.inSync === true,
       changedFields: Array.isArray(status.changedFields) ? status.changedFields : [],
-      filters,
     }
     if (status.savedRunMissing === true) throw new CliError('This automation\'s saved run is no longer available, so it cannot be synced.', EXIT.failed, 'fix the automation in the app')
     if (summary.inSync) return { ...summary, synced: false, note: 'Already in sync with its run.' }
-    if (args.yes !== true) return { ...summary, synced: false, preview: true, next: 'check each side\'s filters, then run it again with --yes' }
+    if (args.yes !== true) return { ...summary, synced: false, preview: true, next: 'check the changed fields, then run it again with --yes' }
     const synced = await ctx.session.call<Row>(`${RECON}.sync#Automation`, { automationId })
     return { ...summary, synced: true, changedFields: synced.changedFields ?? summary.changedFields }
   },

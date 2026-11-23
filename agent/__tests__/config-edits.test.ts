@@ -12,6 +12,7 @@ import { annotationsFor } from '../mcp.ts'
 import { COMMANDS } from '../commands.ts'
 import { EXIT } from '../rpc.ts'
 import { fakeBackend } from './fakeBackend.ts'
+import { GUIDE } from '../guide.ts'
 
 const GET_TREE = 'facade.RunConclusionFacadeServices.get#RunConclusions'
 const SAVE_TREE = 'facade.RunConclusionFacadeServices.save#RunConclusions'
@@ -99,29 +100,27 @@ test('conclusions code makes a tenant code by label', async () => {
 
 const drifted = () => ({
   ok: true,
-  syncStatus: { inSync: false, changedFields: ['FILE_1.excludeFilters'], savedRunMissing: false },
+  syncStatus: { inSync: false, changedFields: ['FILE_1.schemaFileName'], savedRunMissing: false },
   automation: {
     automationName: 'Month close: Completed - HotWax vs NetSuite', savedRunId: 'RS_100515',
-    sources: [{ fileSide: 'FILE_1', excludeFilters: [{ fieldExpression: 'unitState', operator: 'INCLUDE_IN', values: ['COMPLETED'] }] },
-              { fileSide: 'FILE_2', excludeFilters: [] }],
-    savedRun: { file1ExcludeFilters: [{ sequenceNum: 1, fieldExpression: 'unitState', operator: 'INCLUDE_IN', values: ['COMPLETED'] },
-                                      { sequenceNum: 2, fieldExpression: 'productId', operator: 'EXCLUDE_IN', values: ['142036'] }],
+    sources: [{ fileSide: 'FILE_1', schemaFileName: 'old.json' }, { fileSide: 'FILE_2' }],
+    savedRun: { file1ExcludeFilters: [{ sequenceNum: 1, fieldExpression: 'unitState', operator: 'INCLUDE_IN', values: ['COMPLETED'] }],
                 file2ExcludeFilters: [] },
   },
 })
 
-test('automation sync shows both sides\' filters and syncs only with --yes', async () => {
+test('automation sync shows what would change and syncs only with --yes', async () => {
   const preview = await go(['automation', 'sync', '100513'], { [GET_AUTO]: drifted })
   assert.equal(preview.exitCode, 0, preview.stderr)
   const p = JSON.parse(preview.stdout)
   assert.equal(p.inSync, false)
   assert.equal(p.preview, true)
-  assert.deepEqual(p.changedFields, ['FILE_1.excludeFilters'])
-  assert.deepEqual(p.filters, [{ side: 'FILE_1', automation: [{ fieldExpression: 'unitState', operator: 'INCLUDE_IN', values: ['COMPLETED'] }],
-    run: [{ fieldExpression: 'unitState', operator: 'INCLUDE_IN', values: ['COMPLETED'] }, { fieldExpression: 'productId', operator: 'EXCLUDE_IN', values: ['142036'] }] }])
+  assert.deepEqual(p.changedFields, ['FILE_1.schemaFileName'])
+  // DAR-BE-318 3b-2c: an automation reads its run's filters, so there is no filter copy to compare
+  assert.equal('filters' in p, false)
   assert.ok(!preview.requests.some((q) => q.method === SYNC_AUTO), 'a preview never syncs')
 
-  const done = await go(['automation', 'sync', '100513', '--yes'], { [GET_AUTO]: drifted, [SYNC_AUTO]: () => ({ ok: true, changedFields: ['FILE_1.excludeFilters'] }) })
+  const done = await go(['automation', 'sync', '100513', '--yes'], { [GET_AUTO]: drifted, [SYNC_AUTO]: () => ({ ok: true, changedFields: ['FILE_1.schemaFileName'] }) })
   assert.equal(done.exitCode, 0, done.stderr)
   assert.deepEqual(done.requests.find((q) => q.method === SYNC_AUTO)!.params, { automationId: '100513' })
   assert.equal(JSON.parse(done.stdout).synced, true)
@@ -153,4 +152,12 @@ test('bin/darpan hands every command\'s first word to the Node CLI', () => {
   assert.ok(line, 'the launcher\'s run_agent case line')
   const words = new Set(line.replace(/\).*$/, '').trim().split('|'))
   for (const first of new Set(COMMANDS.map((c) => c.name.split(' ')[0]!))) assert.ok(words.has(first), `bin/darpan does not pass "${first}" to the Node CLI`)
+})
+
+test('the guide says automation sync copies sources only', () => {
+  // DAR-BE-318 3b-2c: an automation reads its run's filters, so there is nothing to compare before a sync
+  const line = GUIDE.split('\n').filter((l) => l.includes('automation sync') || l.includes('until then')).join(' ')
+  assert.ok(line.includes('automation sync'), line)
+  assert.ok(line.includes("reads its run's filters"), line)
+  assert.ok(!line.includes('Compare both sides'), line)
 })
