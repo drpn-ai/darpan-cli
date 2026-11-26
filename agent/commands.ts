@@ -51,6 +51,10 @@ export interface Command {
 export interface AllowedMethod {
   method: string
   description: string
+  /** DAR-CLI-008: the method can change something; `call` sends it only with --yes. */
+  writes: boolean
+  /** DAR-CLI-008: the method's parameters from the contract. */
+  inputs?: { name: string; required: boolean }[]
 }
 
 export function loadAllowedMethods(): AllowedMethod[] {
@@ -291,21 +295,31 @@ const api: Command = {
 
 const call: Command = {
   name: 'call',
-  summary: 'call <method> [--params <json>]         call one allowlisted method',
-  description: 'Call one method from `darpan api` as you, in the chosen tenant.',
+  summary: 'call <method> [--params <json>] [--yes]  call one allowlisted method',
+  description: 'Call one method from `darpan api` as you, in the chosen tenant. A method marked writes: true changes something and is sent only with --yes; the server still checks your role, exactly as in the app.',
   input: {
     type: 'object',
-    properties: { method: { type: 'string', description: 'Method name from `darpan api`' }, params: { type: 'object', description: 'Method parameters' } },
+    properties: {
+      method: { type: 'string', description: 'Method name from `darpan api`' },
+      params: { type: 'object', description: 'Method parameters' },
+      yes: { type: 'boolean', description: 'Send a method that changes something (writes: true in `darpan api`)' },
+    },
     required: ['method'],
   },
   tenant: 'required',
   positional: ['method'],
   async run(ctx, args) {
     const method = String(args.method ?? '')
+    const allowed = loadAllowedMethods().find((m) => m.method === method)
     // Final review Important 2, defence in depth: never mint, approve or read a CLI sign-in from a CLI session (an
     // agent would print the new key into its transcript), whatever the allowlist file says.
-    if (/#CliLogin/.test(method) || !loadAllowedMethods().some((m) => m.method === method)) {
+    if (/#CliLogin/.test(method) || !allowed) {
       throw new CliError(`${method || '(none)'} is not available to the Darpan CLI.`, EXIT.forbidden, 'run `darpan api` for the methods you can call')
+    }
+    if (allowed.writes && args.yes !== true) {
+      const inputs = (allowed.inputs ?? []).map((i) => (i.required ? `${i.name} (required)` : i.name)).join(', ')
+      throw new CliError(`${method} changes something; nothing was sent. Inputs: ${inputs || 'none'}.`, EXIT.usage,
+        'read the current record first, show the person what will change, then pass --params with these inputs and --yes')
     }
     return ctx.session.call(method, (args.params as object | undefined) ?? {})
   },
@@ -935,8 +949,6 @@ const monthExport: Command = {
 // ---------------------------------------------------------------------------------------------------------------
 // Fresh read-only queries and tenant scripts (Task 11).
 // ---------------------------------------------------------------------------------------------------------------
-const TS = 'facade.TenantScriptFacadeServices'
-const MAX_INPUT_JSON = 2_000_000
 
 const QUERY_METHOD: Record<SystemKind['system'], { method: string; idParam: string }> = {
   NetSuite: { method: 'facade.NetSuiteQueryFacadeServices.run#NsSuiteQlAgentQuery', idParam: 'nsAuthConfigId' },
@@ -965,8 +977,6 @@ export function readStdinText(isTTY: boolean | undefined, read: () => string): s
   if (isTTY) throw usageError('`-` reads standard input; pipe the query in.', 'example: cat query.sql | darpan query run --connection <id> --suiteql -')
   return read()
 }
-
-const MAX_BODY = 64_000
 
 /** A text input given either as a file (CLI only) or inline, exactly one. The file must be a regular file outside the
  *  darpan config dir (its sign-in key lives there), and is size-checked before it is read. */
@@ -1059,276 +1069,6 @@ const queryRun: Command = {
     const { ok: _ok, messages: _messages, errors: _errors, ...rest } = answer
     return rest
   },
-}
-
-const scripts: Command = {
-  name: 'scripts',
-  summary: 'scripts                                 the tenant\'s saved scripts',
-  description:
-    'Lists the tenant\'s saved scripts (name, body, profile, input) together with the d: functions a script may use and the size and time limits. Use it to find a scriptId before `script run`, `script save --id` or `deploy`.',
-  input: NONE,
-  tenant: 'required',
-  async run(ctx) {
-    const listed = await ctx.session.call<Row>(`${TS}.list#TenantScripts`, {})
-    return { scripts: asRows(listed.scripts), library: asRows(listed.library), limits: listed.limits }
-  },
-}
-
-const scriptRun: Command = {
-  name: 'script run',
-  summary: 'script run (--saved <id> | --body <file> | --body-text <script>) (--result <fileName> | --rows <json-file> | --rows-json <json> | --sample)   try a script',
-  description:
-    'Runs a script and returns what it gave back; nothing is saved or sent. Choose the script (a saved one with --saved, or a draft file with --body) and its input: --result <fileName> reads a run result file (from `darpan result`), --rows <json-file> feeds the output of `darpan query run` saved to a file (at most 2,000,000 characters), --sample uses the script\'s saved sample. A script error comes back as a result, not a failure.',
-  input: {
-    type: 'object',
-    properties: {
-      saved: { type: 'string', description: 'A tenantScriptId from `darpan scripts`' },
-      body: { type: 'string', description: 'Path of a file holding the script text (CLI only)' },
-      bodyText: { type: 'string', description: 'The script text itself, at most 64,000 characters' },
-      profile: { type: 'string', description: 'EXPRESSION or SCRIPT (with a draft script)' },
-      result: { type: 'string', description: 'A run result file name' },
-      rows: { type: 'string', description: 'Path of a JSON file to use as the input (CLI only)' },
-      rowsJson: { type: 'string', description: 'The input JSON itself, at most 2,000,000 characters (for example a `query run` answer)' },
-      sample: { type: 'boolean', description: 'Use the saved sample input' },
-    },
-  },
-  tenant: 'required',
-  cliOnly: ['body', 'rows'],
-  async run(ctx, args) {
-    const saved = text(args.saved)
-    const hasBody = args.body !== undefined || args.bodyText !== undefined
-    if (!saved === !hasBody) throw usageError('Give exactly one of --saved <id>, --body <file> or --body-text <script>.', 'run `darpan scripts` for the saved ones')
-    const inputs = [args.result !== undefined, args.rows !== undefined || args.rowsJson !== undefined, args.sample === true].filter(Boolean).length
-    if (inputs !== 1) throw usageError('Give exactly one of --result <fileName>, --rows <json-file> / --rows-json <json>, or --sample.', 'example: --rows ./rows.json')
-    const params: Row = {}
-    if (saved) params.tenantScriptId = saved
-    else {
-      params.scriptBody = textInput(ctx, 'body', 'bodyText', args, MAX_BODY, 'script')
-      if (text(args.profile)) params.scriptProfile = String(args.profile)
-    }
-    if (args.result !== undefined) {
-      const fileName = text(args.result)
-      if (!fileName || fileName === 'true') throw usageError('--result needs a run result file name.', 'run `darpan result <savedRunId>` to see it')
-      params.inputSource = 'RUN_RESULT'
-      params.fileName = fileName
-    } else if (args.rows !== undefined || args.rowsJson !== undefined) {
-      const rows = textInput(ctx, 'rows', 'rowsJson', args, MAX_INPUT_JSON, 'script input (2,000,000 characters at most; query fewer rows or columns)')!
-      try {
-        JSON.parse(rows)
-      } catch {
-        throw usageError('The rows input is not valid JSON.', 'pass the output of `darpan query run`')
-      }
-      params.inputSource = 'SAMPLE'
-      params.inputJson = rows
-    } else {
-      params.inputSource = 'SAMPLE'
-    }
-    const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>(`${TS}.run#TenantScript`, params)
-    return rest
-  },
-}
-
-const scriptSave: Command = {
-  name: 'script save',
-  summary: 'script save --name <n> (--body <file> | --body-text <script>) [--id <id>] [--profile P] [--description D]   save a script',
-  description:
-    'Saves a script for the tenant from a file: a new one, or --id to change an existing one. The answer carries the validation result (problems and notes) so a bad script can be fixed before it is deployed. Try it first with `script run`.',
-  input: {
-    type: 'object',
-    properties: {
-      name: { type: 'string', description: 'Script name, unique in the tenant' },
-      body: { type: 'string', description: 'Path of a file holding the script text (CLI only)' },
-      bodyText: { type: 'string', description: 'The script text itself, at most 64,000 characters' },
-      id: { type: 'string', description: 'A tenantScriptId to update' },
-      profile: { type: 'string', description: 'EXPRESSION or SCRIPT (default SCRIPT)' },
-      description: { type: 'string', description: 'What the script is for' },
-    },
-    required: ['name'],
-  },
-  tenant: 'required',
-  cliOnly: ['body'],
-  async run(ctx, args) {
-    const name = text(args.name)
-    if (!name || args.name === true) throw usageError('script save needs --name <name>.', 'example: --name "Morning returns summary"')
-    const body = textInput(ctx, 'body', 'bodyText', args, MAX_BODY, 'script')
-    if (body === undefined) throw usageError('script save needs --body <file> or --body-text <script>.', 'example: --body ./script.jexl')
-    const params: Row = { scriptName: name, scriptBody: body }
-    if (text(args.id)) {
-      // save#TenantScript rewrites every field it is not given (description, inputSource, sample input, on/off,
-      // profile fall back to defaults), so an update resends what it is not changing.
-      const id = String(args.id)
-      const listed = await ctx.session.call<Row>(`${TS}.list#TenantScripts`, {})
-      const existing = asRows(listed.scripts).find((s) => s.tenantScriptId === id)
-      if (!existing) throw usageError(`"${id}" is not one of your scripts.`, 'run `darpan scripts`')
-      params.tenantScriptId = id
-      for (const key of ['description', 'scriptProfile', 'inputSource', 'sampleInputJson'] as const) if (text(existing[key])) params[key] = existing[key]
-      params.isActive = existing.isActive !== 'N' && existing.isActive !== false
-    }
-    if (text(args.profile)) params.scriptProfile = String(args.profile)
-    if (text(args.description)) params.description = String(args.description)
-    const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>(`${TS}.save#TenantScript`, params)
-    return rest
-  },
-}
-
-const scriptDelete: Command = {
-  name: 'script delete',
-  summary: 'script delete <id>                     delete a saved script',
-  description: 'Deletes one saved script by its tenantScriptId from `darpan scripts`. Deployments of it should be removed first with `deploy delete`.',
-  input: { type: 'object', properties: { id: { type: 'string', description: 'A tenantScriptId' } }, required: ['id'] },
-  tenant: 'required',
-  positional: ['id'],
-  async run(ctx, args) {
-    const id = text(args.id)
-    if (!id) throw usageError('script delete needs a script id.', 'run `darpan scripts`')
-    await ctx.session.call(`${TS}.delete#TenantScript`, { tenantScriptId: id })
-    return { deleted: true, tenantScriptId: id }
-  },
-}
-
-async function listDeployments(ctx: Ctx, scriptId?: string): Promise<Row> {
-  const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>(`${TS}.list#TenantScriptDeployments`, scriptId ? { tenantScriptId: scriptId } : {})
-  return rest
-}
-
-async function findDeployment(ctx: Ctx, id: unknown): Promise<Row> {
-  const wanted = text(id)
-  if (!wanted) throw usageError('Give the deployment id.', 'run `darpan deployments`')
-  const found = asRows((await listDeployments(ctx)).deployments).find((d) => d.tenantScriptDeploymentId === wanted)
-  if (!found) throw usageError(`"${wanted}" is not one of your deployments.`, 'run `darpan deployments`')
-  return found
-}
-
-const deployments: Command = {
-  name: 'deployments',
-  summary: 'deployments [--script <id>]            scheduled script deployments',
-  description:
-    'Lists the tenant\'s script deployments: which script runs on which schedule, over which saved run, posting to which chat space, whether it is on, and how its last run went. Schedules are read in the tenant\'s time zone, shown as timeZone.',
-  input: { type: 'object', properties: { script: { type: 'string', description: 'Only deployments of this tenantScriptId' } } },
-  tenant: 'required',
-  async run(ctx, args) {
-    return listDeployments(ctx, text(args.script))
-  },
-}
-
-const DAILY = /^([01][0-9]|2[0-3]):([0-5][0-9])$/
-
-const deploy: Command = {
-  name: 'deploy',
-  summary: 'deploy --script <id> --input <savedRunId> --space <chatSpaceId> (--daily HH:MM | --cron <expr>) [--on] [--id <deploymentId>]   schedule a script',
-  description:
-    'Schedules a saved script to run on its own and post its text to a chat space: --input is the saved run whose newest result it reads, --space the chat space, and the time is --daily HH:MM (24-hour, tenant time zone) or a Quartz --cron. It is saved switched OFF unless you pass --on; check it with `deploy preview` first. --id changes an existing deployment.',
-  input: {
-    type: 'object',
-    properties: {
-      script: { type: 'string', description: 'A tenantScriptId from `darpan scripts`' },
-      input: { type: 'string', description: 'The savedRunId whose newest result the script reads' },
-      space: { type: 'string', description: 'The chat space to post to' },
-      daily: { type: 'string', description: 'Every day at HH:MM, 24-hour, tenant time zone' },
-      cron: { type: 'string', description: 'A Quartz cron, e.g. 0 0 9 * * ?' },
-      on: { type: 'boolean', description: 'Switch the deployment on (default off)' },
-      id: { type: 'string', description: 'A tenantScriptDeploymentId to update' },
-    },
-    required: ['script', 'input', 'space'],
-  },
-  tenant: 'required',
-  async run(ctx, args) {
-    const script = text(args.script)
-    const space = text(args.space)
-    if (!script || args.script === true) throw usageError('deploy needs --script <id>.', 'run `darpan scripts`')
-    if (!space || args.space === true) throw usageError('deploy needs --space <chatSpaceId>.', 'name the chat space to post to')
-    if ((args.daily === undefined) === (args.cron === undefined)) throw usageError('Give exactly one of --daily HH:MM or --cron <expr>.', 'example: --daily 09:00')
-    let scheduleExpr: string
-    if (args.daily !== undefined) {
-      const m = DAILY.exec(String(args.daily))
-      if (!m) throw usageError('--daily must be HH:MM in 24-hour time.', 'example: --daily 09:00')
-      scheduleExpr = `0 ${Number(m[2])} ${Number(m[1])} * * ?`
-    } else {
-      scheduleExpr = String(args.cron).trim()
-      if (!scheduleExpr || scheduleExpr === 'true') throw usageError('--cron needs a Quartz expression.', 'example: --cron "0 0 9 * * ?"')
-    }
-    const input = text(args.input)
-    if (!input || args.input === true) throw usageError('deploy needs --input <savedRunId>.', 'the saved run whose newest result the script reads; run `darpan runs`')
-    const params: Row = { tenantScriptId: script, chatSpaceId: space, scheduleExpr, inputSavedRunId: input, isActive: args.on === true }
-    if (text(args.id)) params.tenantScriptDeploymentId = String(args.id)
-    const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>(`${TS}.save#TenantScriptDeployment`, params)
-    return rest
-  },
-}
-
-const DEPLOYMENT_ID = { type: 'object', properties: { id: { type: 'string', description: 'A tenantScriptDeploymentId from `darpan deployments`' } }, required: ['id'] } as const satisfies JsonSchemaObject
-
-const deployOff: Command = {
-  name: 'deploy off',
-  summary: 'deploy off <id>                         switch a deployment off',
-  description: 'Switches one deployment off, keeping its schedule, script and chat space, so it stops posting. Switch it on again with `deploy --id <id> ... --on`.',
-  input: DEPLOYMENT_ID,
-  tenant: 'required',
-  positional: ['id'],
-  async run(ctx, args) {
-    const d = await findDeployment(ctx, args.id)
-    const params: Row = {
-      tenantScriptDeploymentId: d.tenantScriptDeploymentId,
-      tenantScriptId: d.tenantScriptId,
-      scheduleExpr: d.scheduleExpr,
-      chatSpaceId: d.chatSpaceId,
-      isActive: false,
-    }
-    if (text(d.inputSavedRunId)) params.inputSavedRunId = d.inputSavedRunId
-    const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>(`${TS}.save#TenantScriptDeployment`, params)
-    return rest
-  },
-}
-
-const deployDelete: Command = {
-  name: 'deploy delete',
-  summary: 'deploy delete <id>                      delete a deployment',
-  description: 'Deletes one deployment. The script itself stays.',
-  input: DEPLOYMENT_ID,
-  tenant: 'required',
-  positional: ['id'],
-  async run(ctx, args) {
-    const id = text(args.id)
-    if (!id) throw usageError('deploy delete needs a deployment id.', 'run `darpan deployments`')
-    await ctx.session.call(`${TS}.delete#TenantScriptDeployment`, { tenantScriptDeploymentId: id })
-    return { deleted: true, tenantScriptDeploymentId: id }
-  },
-}
-
-/** Runs a deployment exactly as its schedule would (run#TenantScriptDeployment). The service answers ok even when
- *  nothing reached the chat space, so its outcome.status decides the exit: only `fine` statuses succeed. */
-async function runDeployment(ctx: Ctx, id: unknown, send: boolean, fine: string[]): Promise<Row> {
-  const wanted = text(id)
-  if (!wanted) throw usageError('Give the deployment id.', 'run `darpan deployments`')
-  const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>(`${TS}.run#TenantScriptDeployment`, { tenantScriptDeploymentId: wanted, send })
-  const outcome = (rest.outcome ?? {}) as Row
-  const status = text(outcome.status)
-  if (!fine.includes(status)) {
-    throw new CliError(text(outcome.message) || `The deployment ended ${status || 'without an outcome'}.`, EXIT.failed, 'run `darpan deployments` for its last outcome')
-  }
-  return { tenantScriptDeploymentId: wanted, ...rest }
-}
-
-const deployPreview: Command = {
-  name: 'deploy preview',
-  summary: 'deploy preview <id>                     what a deployment would post, without sending',
-  description:
-    'Shows what a deployment would post to its chat space right now, exactly as its schedule would run it (the script over the newest result of its input saved run). Nothing is sent and nothing is recorded.',
-  input: DEPLOYMENT_ID,
-  tenant: 'required',
-  positional: ['id'],
-  run: (ctx, args) => runDeployment(ctx, args.id, false, ['PREVIEW', 'NOTHING_TO_SEND']),
-}
-
-const deploySend: Command = {
-  name: 'deploy send',
-  summary: 'deploy send <id>                        post a deployment to its chat space now',
-  description:
-    'Runs a deployment now, exactly as its schedule would, and posts the text to its chat space; the outcome is stamped on the deployment. Fails when nothing was delivered (script error, no input yet, chat space gone). Use `deploy preview` first to see the text.',
-  input: DEPLOYMENT_ID,
-  tenant: 'required',
-  positional: ['id'],
-  run: (ctx, args) => runDeployment(ctx, args.id, true, ['SENT', 'NOTHING_TO_SEND']),
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1501,12 +1241,54 @@ const automationSync: Command = {
   },
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// DAR-CLI-008: config history restore. The server applies exactly the plan a preview answered (by its planHash), so the
+// command previews first and restores that plan only with --yes; a config that changed in between is refused as stale.
+// ---------------------------------------------------------------------------------------------------------------
+const TENANT_CONFIG = 'facade.TenantConfigFacadeServices'
+
+const configRestore: Command = {
+  name: 'config restore',
+  summary: 'config restore <versionId> [--yes --plan <planHash>]  put the tenant\'s config back to an earlier version',
+  description:
+    'Puts the active tenant\'s config back to one of its earlier versions (Settings > Config history in the app; `darpan call facade.TenantConfigFacadeServices.get#TenantConfigVersions` lists them). Without --yes it answers what the restore would do, line by line (create, update, unchanged, switched off), and the plan\'s planHash. Show the person that plan; with --yes --plan <planHash> it restores exactly that plan, keeping the current config as a version first so the restore itself can be undone. If the config changed since that preview, the server refuses and nothing is written: preview again. Needs editor or admin.',
+  input: {
+    type: 'object',
+    properties: {
+      versionId: { type: 'string', description: 'The configVersionId to restore' },
+      yes: { type: 'boolean', description: 'Restore it; without this only the plan is answered' },
+      plan: { type: 'string', description: 'The planHash the preview answered: the plan the person saw (required with --yes)' },
+    },
+    required: ['versionId'],
+  },
+  tenant: 'required',
+  positional: ['versionId'],
+  async run(ctx, args) {
+    const id = text(args.versionId)
+    if (!id || args.versionId === true) throw usageError('config restore needs a version id.', `list them with \`darpan call ${TENANT_CONFIG}.get#TenantConfigVersions\``)
+    if (args.yes === true) {
+      // Review Important 1: restore the plan the person saw, never a fresh preview taken at the moment of "yes".
+      const planHash = text(args.plan)
+      if (!planHash || args.plan === true) throw usageError('config restore --yes needs --plan <planHash> from its preview.', `run \`darpan config restore ${id}\` first and show the person the plan`)
+      const restored = await ctx.session.call<Row>(`${TENANT_CONFIG}.restore#TenantConfigVersion`, { id, planHash })
+      return { versionId: id, restored: restored.restored === true, before: restored.before, after: restored.after, plan: restored.plan }
+    }
+    const previewed = await ctx.session.call<Row>(`${TENANT_CONFIG}.preview#TenantConfigRestore`, { id })
+    const blocking = asRows((previewed.plan as Row | undefined)?.blocking).map((b) => String(b.message ?? ''))
+    // Review minor: the server refuses a plan with blocking items, so say what blocks it instead of offering --yes.
+    if (blocking.length) return { versionId: id, preview: true, restored: false, blocked: true, blocking, version: previewed.version, plan: previewed.plan,
+      next: 'this version cannot be restored until these are fixed in the app; then preview again' }
+    return { versionId: id, preview: true, restored: false, version: previewed.version, plan: previewed.plan, planHash: previewed.planHash,
+      next: `show the person this plan, then run it again with --yes --plan ${String(previewed.planHash)} to restore exactly it` }
+  },
+}
+
 export const COMMANDS: Command[] = [
   login, logout, whoami, tenants, tenantUse, api, call,
   systems, describe, runs, runStart, runStatusCommand, runWait, result, audits, report, findingsList, findingsShow, findingsByOrder, findingsRecheck, monthExport,
   auditProgress, auditSettings, auditExtracts,
-  conclusionsShow, conclusionsSave, conclusionsCode, automationSync,
-  queryRun, scripts, scriptRun, scriptSave, scriptDelete, deployments, deploy, deployOff, deployDelete, deployPreview, deploySend,
+  conclusionsShow, conclusionsSave, conclusionsCode, automationSync, configRestore,
+  queryRun,
 ]
 
 /** Longest command name that prefixes the positional words; the rest are its positionals. */

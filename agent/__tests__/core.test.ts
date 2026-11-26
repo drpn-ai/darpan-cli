@@ -188,6 +188,38 @@ test('call sends --params and prints the result as JSON', async () => {
   assert.equal(bad.exitCode, EXIT.usage)
 })
 
+test('call refuses a write method without --yes and sends nothing (DAR-CLI-008)', async () => {
+  const dir = tmpDir()
+  signedIn(dir)
+  const SAVE = 'facade.ReconciliationFacadeServices.save#Automation'
+  const r = await go(['call', SAVE, '--params', '{"automationId":"A1"}'], dir, { [SAVE]: () => ({ ok: true }) })
+  assert.equal(r.exitCode, EXIT.usage)
+  assert.equal(r.requests.length, 0)
+  assert.match(r.stderr, /save#Automation/)
+  assert.match(r.stderr, /--yes/)
+  assert.match(r.stderr, /automationName \(required\)/, 'the refusal lists the method\'s inputs')
+  assert.match(r.stderr, /inputModeEnumId \(required\)/)
+  const yes = await go(['call', SAVE, '--params', '{"automationId":"A1"}', '--yes'], dir, { [SAVE]: (p: any) => ({ ok: true, echo: p }) })
+  assert.equal(yes.exitCode, 0, yes.stderr)
+  assert.deepEqual(yes.requests[0]!.params, { automationId: 'A1' })
+})
+
+test('call runs a read-only fresh query without --yes', async () => {
+  const dir = tmpDir()
+  signedIn(dir)
+  const Q = 'facade.NetSuiteQueryFacadeServices.run#NsSuiteQlAgentQuery'
+  const r = await go(['call', Q, '--params', '{"nsAuthConfigId":"NS1","suiteql":"SELECT 1"}'], dir, { [Q]: () => ({ ok: true, rows: [] }) })
+  assert.equal(r.exitCode, 0, r.stderr)
+  assert.equal(r.requests.length, 1)
+})
+
+test('api marks which methods write', async () => {
+  const r = await go(['api'], tmpDir(), {})
+  const methods = JSON.parse(r.stdout).methods as { method: string; writes: boolean }[]
+  assert.equal(methods.find((m) => m.method === 'facade.AuditFacadeServices.get#Audits')!.writes, false)
+  assert.equal(methods.find((m) => m.method === 'facade.ReconciliationFacadeServices.save#Automation')!.writes, true)
+})
+
 test('api lists the allowlisted methods with descriptions', async () => {
   const dir = tmpDir()
   const r = await go(['api'], dir, {})
@@ -346,8 +378,8 @@ test('control characters in server text are stripped from what is printed', asyn
 test('final review Important 1: run starters wait past the 300 s load balancer; everything else keeps 120 s', async () => {
   const { requestTimeoutMs } = await import('../rpc.ts')
   for (const m of ['facade.ReconciliationFacadeServices.run#SavedRunDiff', 'facade.ReconciliationFacadeServices.run#Reconciliation', 'facade.ReconciliationFacadeServices.run#AutomationNow',
-    'facade.AuditFacadeServices.run#Audit', 'facade.AuditFacadeServices.retry#AuditCheck', 'facade.TenantScriptFacadeServices.run#TenantScript',
-    'facade.TenantScriptFacadeServices.run#TenantScriptDeployment']) {
+    'facade.AuditFacadeServices.run#Audit', 'facade.AuditFacadeServices.retry#AuditCheck', 'facade.TenantScriptFacadeServices.run#TenantQuery',
+    'facade.TenantScriptFacadeServices.run#TenantQuerySchedule', 'facade.AuditFacadeServices.verify#AuditFindings']) {
     assert.ok(requestTimeoutMs(m) >= 300_000, m)
   }
   for (const m of ['facade.NetSuiteQueryFacadeServices.run#NsSuiteQlAgentQuery', 'facade.HotWaxOmsFacadeServices.run#OmsGraphqlAgentQuery',

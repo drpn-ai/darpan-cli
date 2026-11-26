@@ -1,338 +1,3242 @@
 [
   {
     "method": "facade.AgentFacadeServices.list#AgentQueryLogs",
-    "description": "List the fresh queries agents sent to this tenant's systems, newest first. Tenant admins only."
+    "description": "List the fresh queries agents sent to this tenant's systems, newest first. Tenant admins only.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "pageIndex",
+        "required": false
+      },
+      {
+        "name": "pageSize",
+        "required": false
+      },
+      {
+        "name": "outcome",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.AppContentFacadeServices.get#AppContent",
-    "description": "The mascot entries an admin has edited, hidden or created: every SEED row with a title, body, alias or hidden edit, and every ADMIN row. Fields that are not set are omitted. version is a stable hash of the entries returned, so it changes on every create, edit, reset, delete or seed retirement that changes what is served (null when nothing is served)."
+    "description": "The mascot entries an admin has edited, hidden or created: every SEED row with a title, body, alias or hidden edit, and every ADMIN row. Fields that are not set are omitted. version is a stable hash of the entries returned, so it changes on every create, edit, reset, delete or seed retirement that changes what is served (null when nothing is served).",
+    "writes": false,
+    "inputs": []
   },
   {
     "method": "facade.AuditFacadeServices.get#AuditCheckExtracts",
-    "description": "What each system's read wrote for one check's morning: a row per side of the automation run, with the system, how many records it read and the file's data-manager path. Empty when the check did not run that morning, or ran before the run was kept."
+    "description": "What each system's read wrote for one check's morning: a row per side of the automation run, with the system, how many records it read and the file's data-manager path. Empty when the check did not run that morning, or ran before the run was kept.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      },
+      {
+        "name": "check",
+        "required": true
+      },
+      {
+        "name": "date",
+        "required": false
+      },
+      {
+        "name": "period",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.AuditFacadeServices.get#AuditCheckOptions",
-    "description": "What the add-a-check editor offers for one audit: its statements, the tenant's runs with their rules and conclusions, the row types and fix systems a check may name, and the audit's checks."
+    "description": "What the add-a-check editor offers for one audit: its statements, the tenant's runs with their rules and conclusions, the row types and fix systems a check may name, and the audit's checks.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.AuditFacadeServices.get#AuditFinding",
-    "description": "One finding (darpan.audit.finding/v1): records, evidence, fix and history, as the assembler writes it."
+    "description": "One finding (darpan.audit.finding/v1): records, evidence, fix and history, as the assembler writes it.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "findingId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.AuditFacadeServices.get#AuditFindingFeedback",
+    "description": "The notes this tenant sent Darpan on the finding's statement and cause (an Unexplained finding: its statement) within the shown days, newest first. Older notes are kept, just not listed.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "findingId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.AuditFacadeServices.get#AuditFindingsByOrder",
-    "description": "Every open finding of one audit and period, one per order (an order's lines under it, the line holding it up named), each with its statement and category. State is as of today."
+    "description": "Every open finding of one audit and period, one per order (an order's lines under it, the line holding it up named), each with its statement and category and its row's acknowledgement. State and acknowledgements are as of today.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      },
+      {
+        "name": "statement",
+        "required": false
+      },
+      {
+        "name": "period",
+        "required": false
+      },
+      {
+        "name": "state",
+        "required": false
+      },
+      {
+        "name": "priority",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.AuditFacadeServices.get#AuditProgress",
-    "description": "DAR-UI-085. What the audit's checks are doing right now, for its page's Run health while a play or the morning run is going: each automation with a run in progress or queued, the checks it feeds, its stage and progress, and whether it looks healthy, slow or stuck (slow against its own last successful run). Cheap enough to poll; the page reloads the report when a check finishes."
+    "description": "DAR-UI-085. What the audit's checks are doing right now, for its page's Run health while a play or the morning run is going: each automation with a run in progress or queued, the checks it feeds, its stage and progress, and whether it looks healthy, slow or stuck (slow against its own last successful run). Cheap enough to poll; the page reloads the report when a check finishes.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.AuditFacadeServices.get#AuditReadReport",
-    "description": "What one play of an audit read: its reads grouped by endpoint and connection (reads, records, the checks that read, each read's window, the call tally), the totals, and the flags where a read cost more than it needed (DUPLICATE_READ, WHOLE_PERIOD_READ, LOOKUP_OVER_SHARE, LOOKUP_EVERY_PLAY, THROTTLED, CALLS_GREW; thresholds are the Audit reads settings). Empty when the audit has not played (darpan.audit.AuditReadReport)."
+    "description": "What one play of an audit read: its reads grouped by endpoint and connection (reads, records, the checks that read, each read's window, the call tally), the totals, and the flags where a read cost more than it needed (DUPLICATE_READ, WHOLE_PERIOD_READ, LOOKUP_OVER_SHARE, LOOKUP_EVERY_PLAY, THROTTLED, CALLS_GREW; thresholds are the Audit reads settings). Empty when the audit has not played (darpan.audit.AuditReadReport).",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      },
+      {
+        "name": "date",
+        "required": false
+      },
+      {
+        "name": "period",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.AuditFacadeServices.get#AuditReport",
-    "description": "An audit's report for one morning (darpan.audit.report/v1), as the assembler writes it."
+    "description": "An audit's report for one morning (darpan.audit.report/v1), as the assembler writes it.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      },
+      {
+        "name": "date",
+        "required": false
+      },
+      {
+        "name": "period",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.AuditFacadeServices.get#AuditSettings",
-    "description": "An audit's settings: its name, its daily schedule (the audit's own, DAR-BE-199: every check runs on it), and each statement with its checks and the run each check reads."
+    "description": "An audit's settings: its name, its daily schedule (the audit's own, DAR-BE-199: every check runs on it), and each statement with its priority, its checks, the run each check reads, and its reasons.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.AuditFacadeServices.get#Audits",
-    "description": "The active tenant's audits: id (the audit's code), name and the period it reports by."
+    "description": "The active tenant's audits: id (the audit's code), name and the period it reports by.",
+    "writes": false,
+    "inputs": []
   },
   {
     "method": "facade.AuditFacadeServices.retry#AuditCheck",
-    "description": "DAR-UI-086. \"Retry from last read\": one check that did not run on one morning is run again from the extracts that morning's run already read (retry#AutomationExecutionFromExtracts), so no system is read again; its findings land on that morning's report. Refused, in words, when it ran already, has no run that morning, or a read did not finish (then play the audit)."
+    "description": "DAR-UI-086. \"Retry from last read\": one check that did not run on one morning is run again from the extracts that morning's run already read (retry#AutomationExecutionFromExtracts), so no system is read again; its findings land on that morning's report. Refused, in words, when it ran already, has no run that morning, or a read did not finish (then play the audit).",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      },
+      {
+        "name": "check",
+        "required": true
+      },
+      {
+        "name": "date",
+        "required": false
+      },
+      {
+        "name": "period",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.AuditFacadeServices.run#Audit",
-    "description": "Play: runs every check of the audit now over the days picked, first to last inclusive (the tenant's zone), recording findings as the morning run does. Submitted to the background, one automation per run; the audit page shows the results as each finishes. Days in the period just ended record under that period (DAR-BE-178). Refused up front for days in the future or in a period ended before that."
+    "description": "Play: runs every check of the audit now over the days picked, first to last inclusive (the tenant's zone), recording findings as the morning run does. Submitted to the background, one automation per run; the audit page shows the results as each finishes. Days in the period just ended record under that period (DAR-BE-178). Refused up front for days in the future or in a period ended before that.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      },
+      {
+        "name": "fromDate",
+        "required": true
+      },
+      {
+        "name": "thruDate",
+        "required": true
+      },
+      {
+        "name": "fullRead",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.AuditFacadeServices.verify#AuditFinding",
-    "description": "Re-checks one finding's record now: its check runs for that record only, each system read by key, and the ledger closes the finding if the problem is gone or refreshes it with today's cause. Submitted to the background; get#AuditFinding shows the result once lastChecked moves. Writes no check run, so the check's health and its next read are unchanged."
+    "description": "Re-checks one finding's record now: its check runs for that record only, each system read by key, and the ledger closes the finding if the problem is gone or refreshes it with today's cause. Submitted to the background; get#AuditFinding shows the result once lastChecked moves. Writes no check run, so the check's health and its next read are unchanged.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "findingId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.AuthFacadeServices.get#SessionInfo",
-    "description": "Return session metadata for darpan-ui route guards. Moqui resolves the request user from the explicit `login_key` header when present."
+    "description": "Return session metadata for darpan-ui route guards. Moqui resolves the request user from the explicit `login_key` header when present.",
+    "writes": false,
+    "inputs": []
   },
   {
     "method": "facade.CliAuthFacadeServices.logout#CliSession",
-    "description": "Sign the calling CLI out: revokes the CLI session whose key this request carries."
+    "description": "Sign the calling CLI out: revokes the CLI session whose key this request carries.",
+    "writes": true,
+    "inputs": []
   },
   {
     "method": "facade.ConfigSharingFacadeServices.list#ConfigTenantAccess",
-    "description": "Sharing state for one config: owning tenant, peer tenants, the affected-tenant count for the edit warning, and whether the caller may manage the group."
+    "description": "Sharing state for one config: owning tenant, peer tenants, the affected-tenant count for the edit warning, and whether the caller may manage the group.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "configTypeEnumId",
+        "required": true
+      },
+      {
+        "name": "configId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.HotWaxOmsFacadeServices.get#OmsGraphqlSchema",
-    "description": "DAR-CLI-003. The HotWax OMS GraphQL schema a tenant's agent can ask about, trimmed to the types reachable from the Query root (names, kinds, fields, arguments, enum values and descriptions; mutations and subscriptions left out). Read from the OMS once and kept 24 hours per connection. Needs view access."
+    "description": "DAR-CLI-003. The HotWax OMS GraphQL schema a tenant's agent can ask about, trimmed to the types reachable from the Query root (names, kinds, fields, arguments, enum values and descriptions; mutations and subscriptions left out). Read from the OMS once and kept 24 hours per connection. Needs view access.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "omsRestSourceConfigId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.HotWaxOmsFacadeServices.list#HotWaxOmsRestSourceConfigs",
-    "description": "List OMS source configurations available to the active tenant."
+    "description": "List OMS source configurations available to the active tenant.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "query",
+        "required": false
+      },
+      {
+        "name": "pageIndex",
+        "required": false
+      },
+      {
+        "name": "pageSize",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.HotWaxOmsFacadeServices.run#OmsGraphqlAgentQuery",
-    "description": "DAR-CLI-003. Runs one fresh, read-only GraphQL query a tenant user's agent wrote, through a HotWax OMS connection the active tenant stores. One query only (no mutation, subscription or introspection); the answer is returned as the OMS gave it, up to 5 MB; the connection's credentials are never returned. Needs run access. Every call is logged for the tenant."
+    "description": "DAR-CLI-003. Runs one fresh, read-only GraphQL query a tenant user's agent wrote, through a HotWax OMS connection the active tenant stores. One query only (no mutation, subscription or introspection); the answer is returned as the OMS gave it, up to 5 MB; the connection's credentials are never returned. Needs run access. Every call is logged for the tenant.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "omsRestSourceConfigId",
+        "required": true
+      },
+      {
+        "name": "document",
+        "required": true
+      },
+      {
+        "name": "variables",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.JsonSchemaFacadeServices.get#JsonSchema",
-    "description": "Get a single JSON schema including schemaText."
+    "description": "Get a single JSON schema including schemaText.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "jsonSchemaId",
+        "required": false
+      },
+      {
+        "name": "schemaName",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.JsonSchemaFacadeServices.list#JsonSchemas",
-    "description": "List active JSON schemas with pagination for darpan-ui browse page."
+    "description": "List active JSON schemas with pagination for darpan-ui browse page.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "query",
+        "required": false
+      },
+      {
+        "name": "pageIndex",
+        "required": false
+      },
+      {
+        "name": "pageSize",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.NetSuiteLifecycleFacadeServices.get#LifecycleOptions",
-    "description": "What the lifecycle builder may offer for one NetSuite account: record types with records in the last 30 days, and, given a record type, what follows it in NetSuite's link table over a settled week, with how many reached each follower, how soon, and the share done by each of a few days."
+    "description": "What the lifecycle builder may offer for one NetSuite account: record types with records in the last 30 days, and, given a record type, what follows it in NetSuite's link table over a settled week, with how many reached each follower, how soon, and the share done by each of a few days.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "nsAuthConfigId",
+        "required": true
+      },
+      {
+        "name": "recordType",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.NetSuiteLifecycleFacadeServices.get#LifecycleRuleOptions",
-    "description": "DAR-UI-050. What a lifecycle rule may name: the text fields NetSuite shows on the record type, by their own names, and, given one, the values it holds over the last 30 days, most common first, with an empty value as NO_VALUE (\"No value\")."
+    "description": "DAR-UI-050. What a lifecycle rule may name: the text fields NetSuite shows on the record type, by their own names, and, given one, the values it holds over the last 30 days, most common first, with an empty value as NO_VALUE (\"No value\").",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "nsAuthConfigId",
+        "required": true
+      },
+      {
+        "name": "recordType",
+        "required": true
+      },
+      {
+        "name": "fieldId",
+        "required": false
+      },
+      {
+        "name": "scope",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.NetSuiteQueryFacadeServices.get#NsSuiteQlQueryOptions",
-    "description": "DAR-UI-064. What the SuiteQL query editor offers: templates, date columns, common record types, the fields and operators a match rule may use, and the NetSuite accounts the active tenant may read."
+    "description": "DAR-UI-064. What the SuiteQL query editor offers: templates, date columns, common record types, the fields and operators a match rule may use, and the NetSuite accounts the active tenant may read.",
+    "writes": false,
+    "inputs": []
   },
   {
     "method": "facade.NetSuiteQueryFacadeServices.get#NsSuiteQlSourceQuery",
-    "description": "One check definition with its full column projection, for editing."
+    "description": "One check definition with its full column projection, for editing.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "nsSuiteQlSourceQueryId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.NetSuiteQueryFacadeServices.list#NsAgentConnections",
-    "description": "DAR-CLI-003. The NetSuite connections the active tenant may query from an agent: id, description and sign-in kind only. No username, client id, certificate id, account host, key or token."
+    "description": "DAR-CLI-003. The NetSuite connections the active tenant may query from an agent: id, description and sign-in kind only. No username, client id, certificate id, account host, key or token.",
+    "writes": false,
+    "inputs": []
   },
   {
     "method": "facade.NetSuiteQueryFacadeServices.list#NsSuiteQlSourceQueries",
-    "description": "NetSuite SuiteQL check definitions the active tenant can see, paged. Paged like every other list service (pageIndex/pageSize in, a pagination block out), so a caller gets a bounded page and the total instead of every row at once."
+    "description": "NetSuite SuiteQL check definitions the active tenant can see, paged. Paged like every other list service (pageIndex/pageSize in, a pagination block out), so a caller gets a bounded page and the total instead of every row at once.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "pageIndex",
+        "required": false
+      },
+      {
+        "name": "pageSize",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.NetSuiteQueryFacadeServices.preview#NsSuiteQlSourceQuery",
-    "description": "DAR-UI-064. Runs a query as submitted (nothing is saved) against NetSuite for one day and answers its first rows as records with the SuiteQL sent. Read-only, one page. Same validation as save."
+    "description": "DAR-UI-064. Runs a query as submitted (nothing is saved) against NetSuite for one day and answers its first rows as records with the SuiteQL sent. Read-only, one page. Same validation as save.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "nsSuiteQlSourceQueryId",
+        "required": false
+      },
+      {
+        "name": "nsAuthConfigId",
+        "required": true
+      },
+      {
+        "name": "day",
+        "required": false
+      },
+      {
+        "name": "recordType",
+        "required": true
+      },
+      {
+        "name": "fromTable",
+        "required": false
+      },
+      {
+        "name": "dateColumn",
+        "required": false
+      },
+      {
+        "name": "queryTemplate",
+        "required": false
+      },
+      {
+        "name": "joinKeyFieldName",
+        "required": false
+      },
+      {
+        "name": "originFieldName",
+        "required": false
+      },
+      {
+        "name": "matchRules",
+        "required": false
+      },
+      {
+        "name": "fields",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.NetSuiteQueryFacadeServices.run#NsSuiteQlAgentQuery",
-    "description": "DAR-CLI-003. Runs one fresh, read-only SuiteQL query a tenant user's agent wrote, through a NetSuite connection the active tenant stores. One SELECT or WITH statement; 200 rows by default, 2,000 at most; the connection's credentials are never returned. Every call is logged for the tenant."
+    "description": "DAR-CLI-003. Runs one fresh, read-only SuiteQL query a tenant user's agent wrote, through a NetSuite connection the active tenant stores. One SELECT or WITH statement; 200 rows by default, 2,000 at most; the connection's credentials are never returned. Every call is logged for the tenant.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "nsAuthConfigId",
+        "required": true
+      },
+      {
+        "name": "sql",
+        "required": true
+      },
+      {
+        "name": "limit",
+        "required": false
+      },
+      {
+        "name": "offset",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.PeakPeriodFacadeServices.get#PeakPeriod",
-    "description": "One peak period with its run-time moves, the runs its peak hours or a sync lag allowance hold, and the runs a move can name."
+    "description": "One peak period with its run-time moves, the runs its peak hours or a sync lag allowance hold, and the runs a move can name.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "peakPeriodId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.PeakPeriodFacadeServices.list#PeakPeriods",
-    "description": "List the active tenant's peak periods with their state (upcoming, on, off, ended) in the tenant's local today."
+    "description": "List the active tenant's peak periods with their state (upcoming, on, off, ended) in the tenant's local today.",
+    "writes": false,
+    "inputs": []
   },
   {
     "method": "facade.SyncPulseFacadeServices.get#RunPulseFlags",
-    "description": "The records of one daily-check run that the sync pulse had already flagged past allowance before the run started and that were still open then: recordKey to the ISO time the pulse first flagged it. syncPairId is the run's sync pair; null with no flags when the run's check has no pair."
+    "description": "The records of one daily-check run that the sync pulse had already flagged past allowance before the run started and that were still open then: recordKey to the ISO time the pulse first flagged it. syncPairId is the run's sync pair; null with no flags when the run's check has no pair.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "reconciliationRunResultId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.SyncPulseFacadeServices.get#SyncPair",
-    "description": "One sync pair of the active tenant: its effective allowance and cadence today (and the pair's own values), today's samples and the open past-allowance orders, oldest first. Always returns the daily checks and chat spaces the pair form picks from; with no syncPairId that is all it returns."
+    "description": "One sync pair of the active tenant: its effective allowance and cadence today (and the pair's own values), today's samples and the open past-allowance orders, oldest first. Always returns the daily checks and chat spaces the pair form picks from; with no syncPairId that is all it returns.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "syncPairId",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.SyncPulseFacadeServices.list#SyncPairs",
-    "description": "List the active tenant's sync pairs with the waiting and past-allowance counts from the latest sample and the open orders."
+    "description": "List the active tenant's sync pairs with the waiting and past-allowance counts from the latest sample and the open orders.",
+    "writes": false,
+    "inputs": []
   },
   {
     "method": "facade.ReconciliationFacadeServices.cancel#ReconciliationRun",
-    "description": "Ask a running reconciliation to stop. Tenant-gated. Cancellation is cooperative: this records the request and the run ends itself AUT_STAT_CANCELLED at its next checkpoint (a stage boundary, or an extract progress tick during a long paged extract), so the run may still report RUNNING for a few seconds after this returns."
+    "description": "Ask a running reconciliation to stop. Tenant-gated. Cancellation is cooperative: this records the request and the run ends itself AUT_STAT_CANCELLED at its next checkpoint (a stage boundary, or an extract progress tick during a long paged extract), so the run may still report RUNNING for a few seconds after this returns.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationRunResultId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.get#ActiveRunResult",
-    "description": "DAR-BE-146. The newest run of a saved run still pending or running that began in the last two minutes, in the active tenant; empty when there is none. run#SavedRunDiff answers only when its run ends, so the run page asks this right after Run to open the live view."
+    "description": "DAR-BE-146. The newest run of a saved run still pending or running that began in the last two minutes, in the active tenant; empty when there is none. run#SavedRunDiff answers only when its run ends, so the run page asks this right after Run to open the live view.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "savedRunId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.get#Automation",
-    "description": "Get one tenant-scoped automation with editable source rows and dashboard summary fields. An automation an audit's checks run through names it (audit: {code, name}, DAR-BE-199) and cannot be paused or resumed by itself."
+    "description": "Get one tenant-scoped automation with editable source rows and dashboard summary fields. An automation an audit's checks run through names it (audit: {code, name}, DAR-BE-199) and cannot be paused or resumed by itself.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "automationId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.get#AutomationStreaks",
-    "description": "DAR-BE-107. The active tenant's clean-day streaks: each automation's live and best streak in days, on its own midnight, and the badges it has earned; the tenant streak (the shortest live streak of its active scheduled automations); and the side quests the tenant has found. Read-only: slots not yet stored are folded in memory, so the numbers are current before an automation's next run."
+    "description": "DAR-BE-107. The active tenant's clean-day streaks: each automation's live and best streak in days, on its own midnight, and the badges it has earned; the tenant streak (the shortest live streak of its active scheduled automations); and the side quests the tenant has found. Read-only: slots not yet stored are folded in memory, so the numbers are current before an automation's next run.",
+    "writes": false,
+    "inputs": []
   },
   {
     "method": "facade.ReconciliationFacadeServices.get#GeneratedOutput",
-    "description": "Retrieve a scoped generated diff output for direct download from darpan-ui."
+    "description": "Retrieve a scoped generated diff output for direct download from darpan-ui.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "fileName",
+        "required": true
+      },
+      {
+        "name": "format",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.get#GeneratedOutputDifferences",
-    "description": "Return a bounded page of a JSON diff document's differences (plus whole-document facets, effective summary, metadata, and a download descriptor WITHOUT the file body) so darpan-ui can render large reconciliation results without loading the entire file. Audit #21."
+    "description": "Return a bounded page of a JSON diff document's differences (plus whole-document facets, effective summary, metadata, and a download descriptor WITHOUT the file body) so darpan-ui can render large reconciliation results without loading the entire file. Audit #21.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "fileName",
+        "required": true
+      },
+      {
+        "name": "pageIndex",
+        "required": false
+      },
+      {
+        "name": "pageSize",
+        "required": false
+      },
+      {
+        "name": "buckets",
+        "required": false
+      },
+      {
+        "name": "ruleFilterKey",
+        "required": false
+      },
+      {
+        "name": "search",
+        "required": false
+      },
+      {
+        "name": "conclusionCode",
+        "required": false
+      },
+      {
+        "name": "includeFacets",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.get#LifecyclePlan",
-    "description": "DAR-UI-050. The places a lifecycle's stages in this order would make, named as save#LifecycleStages names them, without saving: the settings page shows them while the order is being changed. Reads nothing."
+    "description": "DAR-UI-050. The places a lifecycle's stages in this order would make, named as save#LifecycleStages names them, without saving: the settings page shows them while the order is being changed. Reads nothing.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "recordType",
+        "required": true
+      },
+      {
+        "name": "stageRecordTypes",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.get#Mapping",
-    "description": "Load one mapping with editable schema and field details for darpan-ui settings workflows."
+    "description": "Load one mapping with editable schema and field details for darpan-ui settings workflows.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "reconciliationMappingId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.get#Reconciliation",
-    "description": "DAR-UI-048. A run and its questions, in the active tenant."
+    "description": "DAR-UI-048. A run and its questions, in the active tenant.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "reconciliationId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.get#ReconciliationExecution",
-    "description": "DAR-UI-048. Every question's result row from one press of Run, in the active tenant."
+    "description": "DAR-UI-048. Every question's result row from one press of Run, in the active tenant.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "reconciliationExecutionId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.get#ReconciliationRunStatus",
-    "description": "Live status + per-stage timeline for one reconciliation run. Tenant-gated."
+    "description": "Live status + per-stage timeline for one reconciliation run. Tenant-gated.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "reconciliationRunResultId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.list#AutomationExecutions",
-    "description": "List execution history for the active tenant, optionally filtered to one automation."
+    "description": "List execution history for the active tenant, optionally filtered to one automation.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "automationId",
+        "required": false
+      },
+      {
+        "name": "pageIndex",
+        "required": false
+      },
+      {
+        "name": "pageSize",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.list#Automations",
-    "description": "List tenant-scoped reconciliation automations with dashboard-ready saved-run, source, schedule, last-execution, and permission summaries."
+    "description": "List tenant-scoped reconciliation automations with dashboard-ready saved-run, source, schedule, last-execution, and permission summaries.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "query",
+        "required": false
+      },
+      {
+        "name": "pageIndex",
+        "required": false
+      },
+      {
+        "name": "pageSize",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.list#GeneratedOutputs",
-    "description": "List generated reconciliation diff outputs within the current active-tenant scope."
+    "description": "List generated reconciliation diff outputs within the current active-tenant scope.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "savedRunId",
+        "required": false
+      },
+      {
+        "name": "reconciliationMappingId",
+        "required": false
+      },
+      {
+        "name": "query",
+        "required": false
+      },
+      {
+        "name": "pageIndex",
+        "required": false
+      },
+      {
+        "name": "pageSize",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.list#Mappings",
-    "description": "List mapping options and their system pairs for darpan-ui generic diff flow."
+    "description": "List mapping options and their system pairs for darpan-ui generic diff flow.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "query",
+        "required": false
+      },
+      {
+        "name": "pageIndex",
+        "required": false
+      },
+      {
+        "name": "pageSize",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.list#ReconciliationExecutions",
-    "description": "DAR-UI-048. A run's past executions, newest first: one entry per press of Run."
+    "description": "DAR-UI-048. A run's past executions, newest first: one entry per press of Run.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "reconciliationId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.list#Reconciliations",
-    "description": "DAR-UI-048. The active tenant's runs (flowcharts), archived ones left out."
+    "description": "DAR-UI-048. The active tenant's runs (flowcharts), archived ones left out.",
+    "writes": false,
+    "inputs": []
   },
   {
     "method": "facade.ReconciliationFacadeServices.list#SavedRuns",
-    "description": "List saved runs across legacy mappings and RuleSet-backed CSV runs."
+    "description": "List saved runs across legacy mappings and RuleSet-backed CSV runs.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "query",
+        "required": false
+      },
+      {
+        "name": "pageIndex",
+        "required": false
+      },
+      {
+        "name": "pageSize",
+        "required": false
+      },
+      {
+        "name": "includeArchived",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.run#AutomationNow",
-    "description": "Run one automation immediately after active-tenant ownership and run-permission validation."
+    "description": "Run one automation immediately after active-tenant ownership and run-permission validation.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "automationId",
+        "required": true
+      },
+      {
+        "name": "scheduledFireTime",
+        "required": false
+      },
+      {
+        "name": "windowStartDate",
+        "required": false
+      },
+      {
+        "name": "windowEndDate",
+        "required": false
+      },
+      {
+        "name": "hasHeader",
+        "required": false
+      },
+      {
+        "name": "outputLocation",
+        "required": false
+      },
+      {
+        "name": "sparkMaster",
+        "required": false
+      },
+      {
+        "name": "sparkAppName",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.run#GenericDiff",
-    "description": "Run the generic diff flow using text-based file payloads suitable for darpan-ui JSON-RPC calls."
+    "description": "Run the generic diff flow using text-based file payloads suitable for darpan-ui JSON-RPC calls.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationMappingId",
+        "required": true
+      },
+      {
+        "name": "file1Name",
+        "required": false
+      },
+      {
+        "name": "file1Text",
+        "required": false
+      },
+      {
+        "name": "file2Name",
+        "required": false
+      },
+      {
+        "name": "file2Text",
+        "required": false
+      },
+      {
+        "name": "file1SystemEnumId",
+        "required": false
+      },
+      {
+        "name": "file2SystemEnumId",
+        "required": false
+      },
+      {
+        "name": "hasHeader",
+        "required": false
+      },
+      {
+        "name": "sparkMaster",
+        "required": false
+      },
+      {
+        "name": "sparkAppName",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.run#Reconciliation",
-    "description": "DAR-UI-048. Start a run's flowchart. Returns at once with the execution id; the walk runs in the background and get#ReconciliationExecution follows it."
+    "description": "DAR-UI-048. Start a run's flowchart. Returns at once with the execution id; the walk runs in the background and get#ReconciliationExecution follows it.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationId",
+        "required": true
+      },
+      {
+        "name": "windowStartDate",
+        "required": false
+      },
+      {
+        "name": "windowEndDate",
+        "required": false
+      },
+      {
+        "name": "windowStartLocalDate",
+        "required": false
+      },
+      {
+        "name": "windowEndLocalDate",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.run#SavedRunDiff",
-    "description": "Run a saved reconciliation flow backed by either a legacy mapping or a RuleSet compare scope."
+    "description": "Run a saved reconciliation flow backed by either a legacy mapping or a RuleSet compare scope.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "savedRunId",
+        "required": true
+      },
+      {
+        "name": "file1Name",
+        "required": false
+      },
+      {
+        "name": "file1Text",
+        "required": false
+      },
+      {
+        "name": "file2Name",
+        "required": false
+      },
+      {
+        "name": "file2Text",
+        "required": false
+      },
+      {
+        "name": "file1SystemEnumId",
+        "required": false
+      },
+      {
+        "name": "file2SystemEnumId",
+        "required": false
+      },
+      {
+        "name": "windowStartDate",
+        "required": false
+      },
+      {
+        "name": "windowEndDate",
+        "required": false
+      },
+      {
+        "name": "windowStartLocalDate",
+        "required": false
+      },
+      {
+        "name": "windowEndLocalDate",
+        "required": false
+      },
+      {
+        "name": "hasHeader",
+        "required": false
+      },
+      {
+        "name": "sparkMaster",
+        "required": false
+      },
+      {
+        "name": "sparkAppName",
+        "required": false
+      },
+      {
+        "name": "retryFromRunResultId",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.ReconciliationFacadeServices.sync#Automation",
-    "description": "Re-derive an automation's snapshot from its saved run. Overwrites the compare scope, input mode, both source definitions and the exclusion filters; preserves the name, schedule, window, chat space, active status, and the SFTP server, path and pattern the run cannot supply. Never re-points the automation at a different run. Writes nothing directly: it derives, merges the result over the stored source rows, and delegates to save#Automation, which already deletes and recreates every source and filter row on each save. That inherits the whole save path (validateSources, validateApiSource, applyApiSourceMetadataDefaults, tenant stamping, the response builder) rather than growing a second writer that would drift from it."
+    "description": "Re-derive an automation's snapshot from its saved run. Overwrites the compare scope, input mode, both source definitions and the exclusion filters; preserves the name, schedule, window, chat space, active status, and the SFTP server, path and pattern the run cannot supply. Never re-points the automation at a different run. Writes nothing directly: it derives, merges the result over the stored source rows, and delegates to save#Automation, which already deletes and recreates every source and filter row on each save. That inherits the whole save path (validateSources, validateApiSource, applyApiSourceMetadataDefaults, tenant stamping, the response builder) rather than growing a second writer that would drift from it. An automation runs on this copy (DAR-BE-338): an edit to its run reaches its scheduled runs only through this sync.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "automationId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.RunConclusionFacadeServices.create#RunConclusionCode",
-    "description": "Makes a conclusion code of the active tenant's own, named by label; only that tenant's catalog lists it. Refused when the catalog already has the label."
+    "description": "Makes a conclusion code of the active tenant's own, named by label; only that tenant's catalog lists it. Refused when the catalog already has the label.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "label",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.RunConclusionFacadeServices.get#RunConclusions",
-    "description": "A run's conclusion tree in order, the conclusion catalog, and the condition vocabulary (buckets, operators, presence, key scopes, quantifiers)."
+    "description": "A run's conclusion tree in order, the conclusion catalog, and the condition vocabulary (buckets, operators, presence, key scopes, quantifiers).",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "savedRunId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.RunConclusionFacadeServices.save#RunConclusions",
-    "description": "Replaces a run's conclusion tree: [{key, parent, conclusion, bucket, question, outcome, engine, suggestedFilterJson, conditions: [{subject, presence, keyScope, quantifier, field, operator, values, checkLabel}]}]. All or nothing; an empty list clears it, absent keeps it (DAR-BE-198: lookups can be set alone). A node that does not name outcome (HIDE, EXPECTED), engine (BRAIN) or suggestedFilterJson keeps its rule's: same key, same conclusion."
+    "description": "Replaces a run's conclusion tree: [{key, parent, conclusion, bucket, question, outcome, engine, suggestedFilterJson, conditions: [{subject, presence, keyScope, quantifier, field, operator, values, checkLabel}]}]. All or nothing; an empty list clears it, absent keeps it (DAR-BE-198: lookups can be set alone). A node that does not name outcome (HIDE, EXPECTED), engine (BRAIN) or suggestedFilterJson keeps its rule's: same key, same conclusion.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "savedRunId",
+        "required": true
+      },
+      {
+        "name": "conclusions",
+        "required": false
+      },
+      {
+        "name": "unexplainedOutcome",
+        "required": false
+      },
+      {
+        "name": "lookups",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.SearchFacadeServices.search#NavigationTargets",
-    "description": "Search authorized Darpan records and return normalized navigation targets for Ask Darpan."
+    "description": "Search authorized Darpan records and return normalized navigation targets for Ask Darpan.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "query",
+        "required": false
+      },
+      {
+        "name": "types",
+        "required": false
+      },
+      {
+        "name": "pageIndex",
+        "required": false
+      },
+      {
+        "name": "pageSize",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.SettingsFacadeServices.get#LlmSettings",
-    "description": "Get LLM provider settings with stored-secret indicators."
+    "description": "Get LLM provider settings with stored-secret indicators.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "llmProvider",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.SettingsFacadeServices.get#NotificationRoutes",
-    "description": "DAR-UI-123. The active tenant's chat spaces and, for each thing that posts to chat, the one space it posts to: the streaks messages, each audit's run update, each automation (paused ones too, archived ones not) and each deployed script. Notify-me subscriptions and each user's default space are personal and not listed."
+    "description": "DAR-UI-123. The active tenant's chat spaces and, for each thing that posts to chat, the one space it posts to: the streaks messages, each audit's run update, each automation (paused ones too, archived ones not) and each deployed script. Notify-me subscriptions and each user's default space are personal and not listed.",
+    "writes": false,
+    "inputs": []
   },
   {
     "method": "facade.SettingsFacadeServices.get#TenantSettings",
-    "description": "Get active-tenant settings shared by users in the tenant."
+    "description": "Get active-tenant settings shared by users in the tenant.",
+    "writes": false,
+    "inputs": []
   },
   {
     "method": "facade.SettingsFacadeServices.get#UserNotificationDefault",
-    "description": "Get the caller's default chat space for the active tenant; stale or inactive pointers read as not configured."
+    "description": "Get the caller's default chat space for the active tenant; stale or inactive pointers read as not configured.",
+    "writes": false,
+    "inputs": []
   },
   {
     "method": "facade.SettingsFacadeServices.list#EnumOptions",
-    "description": "List enum options for frontend dropdowns using fallback-friendly labels."
+    "description": "List enum options for frontend dropdowns using fallback-friendly labels.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "enumTypeId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.SettingsFacadeServices.test#SourceConnection",
-    "description": "Run connection diagnostics against a saved connector config, using only the stored credentials. Dispatched off the SourceSystemConnector registry, so core names no connector. `ok` reports that the diagnostic ran; `connectionOk` reports the verdict."
+    "description": "Run connection diagnostics against a saved connector config, using only the stored credentials. Dispatched off the SourceSystemConnector registry, so core names no connector. `ok` reports that the diagnostic ran; `connectionOk` reports the verdict.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "systemEnumId",
+        "required": true
+      },
+      {
+        "name": "configId",
+        "required": true
+      },
+      {
+        "name": "stage",
+        "required": false
+      },
+      {
+        "name": "staged",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.ShopifyFacadeServices.get#ShopifyAuthConfig",
-    "description": "Get one Shopify auth config for the active tenant with the access token redacted."
+    "description": "Get one Shopify auth config for the active tenant with the access token redacted.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "shopifyAuthConfigId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.ShopifyFacadeServices.list#ShopifyAuthConfigs",
-    "description": "List Shopify auth configs for the active tenant with secret redaction indicators."
+    "description": "List Shopify auth configs for the active tenant with secret redaction indicators.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "query",
+        "required": false
+      },
+      {
+        "name": "pageIndex",
+        "required": false
+      },
+      {
+        "name": "pageSize",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.ShopifyFacadeServices.get#ShopifyGraphqlSchema",
-    "description": "DAR-CLI-003. The Shopify Admin GraphQL schema a tenant's agent can ask about, trimmed to the types reachable from the Query root (names, kinds, fields, arguments, enum values and descriptions; mutations and subscriptions left out). Read from Shopify once and kept 24 hours per connection. Needs view access."
+    "description": "DAR-CLI-003. The Shopify Admin GraphQL schema a tenant's agent can ask about, trimmed to the types reachable from the Query root (names, kinds, fields, arguments, enum values and descriptions; mutations and subscriptions left out). Read from Shopify once and kept 24 hours per connection. Needs view access.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "shopifyAuthConfigId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.ShopifyFacadeServices.run#ShopifyGraphqlAgentQuery",
-    "description": "DAR-CLI-003. Runs one fresh, read-only GraphQL query a tenant user's agent wrote, through a Shopify connection the active tenant stores. One query only (no mutation, subscription or introspection); the answer is returned as Shopify gave it, up to 5 MB, or refused with advice when larger; the connection's access token is never returned. Needs run access. Every call is logged for the tenant."
+    "description": "DAR-CLI-003. Runs one fresh, read-only GraphQL query a tenant user's agent wrote, through a Shopify connection the active tenant stores. One query only (no mutation, subscription or introspection); the answer is returned as Shopify gave it, up to 5 MB, or refused with advice when larger; the connection's access token is never returned. Needs run access. Every call is logged for the tenant.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "shopifyAuthConfigId",
+        "required": true
+      },
+      {
+        "name": "document",
+        "required": true
+      },
+      {
+        "name": "variables",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.SlackFacadeServices.get#SlackInstall",
-    "description": "The active tenant's connected Slack workspaces. Returns identity and granted scopes only — never the bot token."
+    "description": "The active tenant's connected Slack workspaces. Returns identity and granted scopes only — never the bot token.",
+    "writes": false,
+    "inputs": []
   },
   {
     "method": "facade.SlackFacadeServices.list#SlackChannels",
-    "description": "One page of channels from a connected workspace, for the chat-space channel picker. Paginated rather than exhaustive: conversations.list is rate-limit Tier 2 and a large workspace has thousands of channels."
+    "description": "One page of channels from a connected workspace, for the chat-space channel picker. Paginated rather than exhaustive: conversations.list is rate-limit Tier 2 and a large workspace has thousands of channels.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "slackInstallId",
+        "required": true
+      },
+      {
+        "name": "cursor",
+        "required": false
+      }
+    ]
   },
   {
     "method": "facade.SourceEndpointFacadeServices.list#SourceConfigEndpoints",
-    "description": "Endpoints registered for this config type, each with its current enablement. The catalog comes from SourceSystemConnector; access rows only supply isEnabled."
+    "description": "Endpoints registered for this config type, each with its current enablement. The catalog comes from SourceSystemConnector; access rows only supply isEnabled.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "configTypeEnumId",
+        "required": true
+      },
+      {
+        "name": "configId",
+        "required": true
+      }
+    ]
   },
   {
     "method": "facade.TenantConfigFacadeServices.get#TenantConfigVersions",
-    "description": "The active tenant's config versions, newest first, without their packs."
+    "description": "The active tenant's config versions, newest first, without their packs.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "limit",
+        "required": false
+      }
+    ]
   },
   {
-    "method": "facade.TenantScriptFacadeServices.delete#TenantScript",
-    "description": "Delete one of the active tenant's scripts. Needs edit access to the tenant."
+    "method": "facade.TenantScriptFacadeServices.create#TenantQueryProposal",
+    "description": "A query proposed for the active tenant (by the agent or a person): its read is checked against get#TenantQueryCatalog and, when every source and field is in it, the query runs on the tenant's data so its result can be shown first. Nothing is saved; accepting it is save#TenantQuery. status: PROPOSED or REFUSED (code NOT_KEPT, UNKNOWN_SOURCE or INVALID_READ, with the field). Needs edit access.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "queryName",
+        "required": true
+      },
+      {
+        "name": "description",
+        "required": false
+      },
+      {
+        "name": "readSpecJson",
+        "required": false
+      },
+      {
+        "name": "scriptBody",
+        "required": true
+      }
+    ]
   },
   {
-    "method": "facade.TenantScriptFacadeServices.delete#TenantScriptDeployment",
-    "description": "Delete one of the active tenant's script deployments. Needs edit access to the tenant."
+    "method": "facade.TenantScriptFacadeServices.delete#TenantQuery",
+    "description": "Delete one of the active tenant's queries and its schedules. Needs edit access.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "tenantQueryId",
+        "required": true
+      }
+    ]
   },
   {
-    "method": "facade.TenantScriptFacadeServices.list#TenantScriptDeployments",
-    "description": "The active tenant's script deployments, optionally for one script."
+    "method": "facade.TenantScriptFacadeServices.delete#TenantQuerySchedule",
+    "description": "Delete one of the active tenant's query schedules. Needs tenant-admin access.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "scheduleId",
+        "required": true
+      }
+    ]
   },
   {
-    "method": "facade.TenantScriptFacadeServices.list#TenantScripts",
-    "description": "The active tenant's scripts by name, plus the d: library and the limits, for the editor."
+    "method": "facade.TenantScriptFacadeServices.get#TenantQueryCatalog",
+    "description": "What the active tenant's queries may read: its kept datasets (with their kept fields; none listed = whole records), its saved runs and its audits (with the finding fields). The agent writes queries from this.",
+    "writes": false,
+    "inputs": []
   },
   {
-    "method": "facade.TenantScriptFacadeServices.run#TenantScript",
-    "description": "Runs a script and returns what it gave back; writes nothing. Either a saved script (tenantScriptId) or an unsaved draft (scriptBody + scriptProfile; these also override a saved script's, so the editor can try an edit before saving). The input is read first, then the script runs with no transaction open. A script error is a result (run.ok false, run.error), not a service error. Needs edit access to the tenant."
+    "method": "facade.TenantScriptFacadeServices.list#TenantQueries",
+    "description": "The active tenant's queries by name, with the fn: library and the QUERY limits for the editor, and the signed-in user's pinned queries for this tenant (pin order; a deleted query drops out).",
+    "writes": false,
+    "inputs": []
   },
   {
-    "method": "facade.TenantScriptFacadeServices.run#TenantScriptDeployment",
-    "description": "Runs a saved deployment now, exactly as the schedule would (the script's newest input, its chat space). send=false (the default) is a preview: the text comes back and nothing is posted or recorded. send=true posts it and stamps the outcome on the deployment. Needs edit access to the tenant."
+    "method": "facade.TenantScriptFacadeServices.list#TenantQuerySchedules",
+    "description": "The active tenant's query schedules (optionally for one query): owner, recipients, last run.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "tenantQueryId",
+        "required": false
+      }
+    ]
   },
   {
-    "method": "facade.TenantScriptFacadeServices.save#TenantScript",
-    "description": "Create or update one of the active tenant's scripts. The body must parse under its profile and run cleanly on its sample input; a script that does not is refused with the line, never saved half-checked. No transaction is open while the trial run runs; the store opens its own. Needs edit access to the tenant."
+    "method": "facade.TenantScriptFacadeServices.run#TenantQuery",
+    "description": "Run a saved query, or the read and script given, on the active tenant's data now. Nothing is sent. Needs edit access.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "tenantQueryId",
+        "required": false
+      },
+      {
+        "name": "readSpecJson",
+        "required": false
+      },
+      {
+        "name": "scriptBody",
+        "required": false
+      }
+    ]
   },
   {
-    "method": "facade.TenantScriptFacadeServices.save#TenantScriptDeployment",
-    "description": "Create or update a deployment of one of the active tenant's scripts. The schedule must be a cron the scheduler understands; the chat space must be the tenant's and switched on; a script that reads a run result needs the saved run. A deployment that is on gets its next run date. Needs edit access to the tenant."
+    "method": "facade.TenantScriptFacadeServices.run#TenantQuerySchedule",
+    "description": "Run a schedule now: a preview by default (nothing sent); send=true delivers it and records the run. Only its owner can run it by hand.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "scheduleId",
+        "required": true
+      },
+      {
+        "name": "send",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.TenantScriptFacadeServices.save#TenantQuery",
+    "description": "Create or update one of the active tenant's queries: a read over its kept data and Darpan results, and a JEXL script (profile QUERY). The script must parse and run on its sample; the read's sources must exist. Needs edit access to the tenant.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "tenantQueryId",
+        "required": false
+      },
+      {
+        "name": "queryName",
+        "required": true
+      },
+      {
+        "name": "description",
+        "required": false
+      },
+      {
+        "name": "readSpecJson",
+        "required": false
+      },
+      {
+        "name": "scriptBody",
+        "required": true
+      },
+      {
+        "name": "sampleInputJson",
+        "required": false
+      },
+      {
+        "name": "isActive",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.TenantScriptFacadeServices.save#TenantQuerySchedule",
+    "description": "Create or update a schedule of one of the active tenant's queries: when (daily at HH:mm, or a cron), in the tenant's zone, and where its answer goes (email addresses, a chat space). Whoever saves it owns it. Needs tenant-admin access.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "scheduleId",
+        "required": false
+      },
+      {
+        "name": "tenantQueryId",
+        "required": true
+      },
+      {
+        "name": "dailyAt",
+        "required": false
+      },
+      {
+        "name": "cronExpression",
+        "required": false
+      },
+      {
+        "name": "isActive",
+        "required": false
+      },
+      {
+        "name": "emailTo",
+        "required": false
+      },
+      {
+        "name": "emailCc",
+        "required": false
+      },
+      {
+        "name": "chatSpaceId",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.AgentChangeFacadeServices.apply#AuditChange",
+    "description": "A person applies a planned proposal. Refused without write access, for a BLOCKED proposal, and (an exclusion) when an automation's filters differ from its run's (AUTOMATION_DRIFT). When the config changed since the plan the proposal turns STALE and nothing is written.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "proposalId",
+        "required": true
+      },
+      {
+        "name": "planHash",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.AgentChangeFacadeServices.list#BrainChangeTickets",
+    "description": "The active tenant's tickets, newest first.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "status",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.AgentChangeFacadeServices.plan#AuditChange",
+    "description": "Plans an open proposal again against the current config: the change is checked by its real save, which is rolled back, and planHash covers the change and the config it was planned against. Ends PLANNED, or INVALID with the save's refusal.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "proposalId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.AgentChangeFacadeServices.reject#AuditChange",
+    "description": "A person declines an open proposal; it can no longer be applied.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "proposalId",
+        "required": true
+      },
+      {
+        "name": "reason",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.AgentChangeFacadeServices.revert#AuditChange",
+    "description": "A new planned proposal that puts back what an applied proposal changed, applied through apply#AuditChange with its own planHash.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "proposalId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.AuditFacadeServices.acknowledge#AuditFinding",
+    "description": "Acknowledges the report row holding one open finding: every open line of its order under its statement and the later-step lines waiting under it get the note and one remind day (today in the tenant's zone plus the audit.acknowledge.remindDays setting; none when remind is off). Replaces an earlier acknowledgement of those findings. A fixed finding cannot be acknowledged.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "findingId",
+        "required": true
+      },
+      {
+        "name": "note",
+        "required": false
+      },
+      {
+        "name": "remind",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.AuditFacadeServices.add#AuditStatement",
+    "description": "DAR-UI-078. Adds a statement to the active tenant's audit, coded R and the next number, last in order and on. Saved at once, so a check can be added to it.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      },
+      {
+        "name": "text",
+        "required": true
+      },
+      {
+        "name": "category",
+        "required": true
+      },
+      {
+        "name": "weight",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.AuditFacadeServices.create#Audit",
+    "description": "DAR-UI-078. Makes an audit of the active tenant's own. Its id (the code every audit page and service names it by) is the name in lower case with dashes, one per tenant. Statements and checks are added on its settings.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "name",
+        "required": true
+      },
+      {
+        "name": "period",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.AuditFacadeServices.delete#AuditFindingAcknowledgement",
+    "description": "Reopens the report row holding one finding: removes the acknowledgement of every covered finding, each with a history event. Nothing to remove is not an error.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "findingId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.AuditFacadeServices.get#AuditRecheckProgress",
+    "description": "How far a verify#AuditFindings has come: of the audit's findings in the period (one statement or all), how many were checked since `since`, and how many of those are now closed. A finding whose read did not finish is never counted, so the caller stops waiting after its own limit.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      },
+      {
+        "name": "period",
+        "required": true
+      },
+      {
+        "name": "statement",
+        "required": false
+      },
+      {
+        "name": "since",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.AuditFacadeServices.save#AuditCheck",
+    "description": "Creates or updates a check (check.id is its code) and replaces its links to this audit's statements. All or nothing; refused in words for a statement outside the audit, a run the tenant does not own, a rule not in that run, or a row type the ledger does not write. A new check, or one whose run changed, has no automation until the audit's play or settings makes one.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      },
+      {
+        "name": "check",
+        "required": true
+      },
+      {
+        "name": "statements",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.AuditFacadeServices.save#AuditSettings",
+    "description": "Changes an audit's name, statements (text, on/off, priority), reasons' priorities and its daily schedule, which is the audit's own and is written to the automation of every check it runs (DAR-BE-199). A check whose run has no automation gets one, on that schedule, when the schedule is saved. Answers the settings as saved.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      },
+      {
+        "name": "name",
+        "required": false
+      },
+      {
+        "name": "statements",
+        "required": false
+      },
+      {
+        "name": "reasons",
+        "required": false
+      },
+      {
+        "name": "schedule",
+        "required": false
+      },
+      {
+        "name": "runEmail",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.AuditFacadeServices.send#AuditFindingFeedback",
+    "description": "Sends Darpan a note about one finding: saves it with a snapshot of the finding's statement, cause, record and headline, posts it to Darpan's feedback chat space when one is set, and emails the sender a thank-you. Darpan replies by email.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "findingId",
+        "required": true
+      },
+      {
+        "name": "note",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.AuditFacadeServices.update#AuditFindingAcknowledgement",
+    "description": "Changes the acknowledgement of the report row holding one finding: the note on every covered finding, and the remind day. Remind off clears it; remind on keeps a remind day not yet reached and starts a fresh one (today plus the remind days) when it was off or has passed.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "findingId",
+        "required": true
+      },
+      {
+        "name": "note",
+        "required": false
+      },
+      {
+        "name": "remind",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.AuditFacadeServices.verify#AuditFindings",
+    "description": "Re-checks every open finding of one statement, or of the whole audit, in one period now: one run per automation reads all their records by key in each system, and the ledger closes each finding whose problem is gone or refreshes it with today's cause. Submitted to the background; get#AuditRecheckProgress counts the findings checked since checkedSince. Writes no check run, so the checks' health and next read are unchanged. Findings whose check has no automation yet are skipped (counted in skipped).",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      },
+      {
+        "name": "period",
+        "required": true
+      },
+      {
+        "name": "statement",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.AuthFacadeServices.save#UserSettings",
+    "description": "Persist authenticated user-level settings and return refreshed session metadata.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "displayName",
+        "required": false
+      },
+      {
+        "name": "timeZone",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.JsonSchemaFacadeServices.delete#JsonSchema",
+    "description": "Delete a saved JSON schema by id or schemaName.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "jsonSchemaId",
+        "required": false
+      },
+      {
+        "name": "schemaName",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.JsonSchemaFacadeServices.flatten#JsonSchema",
+    "description": "Flatten a saved schema to editor field rows.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "jsonSchemaId",
+        "required": false
+      },
+      {
+        "name": "schemaName",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.JsonSchemaFacadeServices.infer#JsonSchemaFromCsvText",
+    "description": "Infer a flat schema from a CSV header row and return flattened editor field rows. csvText is the head slice of the upload; isCompleteFile says whether that slice is the whole file, which is the only thing separating a truncated header from a complete header-only file.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "csvText",
+        "required": true
+      },
+      {
+        "name": "isCompleteFile",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.JsonSchemaFacadeServices.infer#JsonSchemaFromText",
+    "description": "Infer schema from JSON text and return flattened editor field rows.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "jsonText",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.JsonSchemaFacadeServices.save#JsonSchemaText",
+    "description": "Save schema text directly from darpan-ui (no backend screen transition dependency).",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "jsonSchemaId",
+        "required": false
+      },
+      {
+        "name": "schemaName",
+        "required": false
+      },
+      {
+        "name": "description",
+        "required": false
+      },
+      {
+        "name": "systemEnumId",
+        "required": false
+      },
+      {
+        "name": "schemaText",
+        "required": true
+      },
+      {
+        "name": "overwrite",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.JsonSchemaFacadeServices.save#RefinedSchema",
+    "description": "Save refined schema field rows from editor in darpan-ui.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "jsonSchemaId",
+        "required": false
+      },
+      {
+        "name": "schemaName",
+        "required": false
+      },
+      {
+        "name": "description",
+        "required": false
+      },
+      {
+        "name": "systemEnumId",
+        "required": false
+      },
+      {
+        "name": "fieldList",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.JsonSchemaFacadeServices.validate#JsonTextAgainstSchema",
+    "description": "Validate JSON text against a saved schema.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "jsonText",
+        "required": true
+      },
+      {
+        "name": "jsonSchemaId",
+        "required": false
+      },
+      {
+        "name": "schemaName",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.NetSuiteQueryFacadeServices.save#NsSuiteQlSourceQuery",
+    "description": "Create or update a NetSuite SuiteQL check definition and its column projection. Rejects anything the extractor would reject, by running the extractor's own normalizeSpec over the submitted values before writing a row.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "nsSuiteQlSourceQueryId",
+        "required": false
+      },
+      {
+        "name": "nsAuthConfigId",
+        "required": true
+      },
+      {
+        "name": "description",
+        "required": false
+      },
+      {
+        "name": "recordType",
+        "required": true
+      },
+      {
+        "name": "fromTable",
+        "required": false
+      },
+      {
+        "name": "dateColumn",
+        "required": false
+      },
+      {
+        "name": "queryTemplate",
+        "required": false
+      },
+      {
+        "name": "absentChildRecordType",
+        "required": false
+      },
+      {
+        "name": "presentChildRecordType",
+        "required": false
+      },
+      {
+        "name": "requireFulfillableOpenLine",
+        "required": false
+      },
+      {
+        "name": "requireOverdueShipDate",
+        "required": false
+      },
+      {
+        "name": "pendingStates",
+        "required": false
+      },
+      {
+        "name": "statesExpectingShipment",
+        "required": false
+      },
+      {
+        "name": "statesExpectingInvoice",
+        "required": false
+      },
+      {
+        "name": "disallowedStates",
+        "required": false
+      },
+      {
+        "name": "overdueExcludedShipMethods",
+        "required": false
+      },
+      {
+        "name": "requireParentRecordType",
+        "required": false
+      },
+      {
+        "name": "amountColumn",
+        "required": false
+      },
+      {
+        "name": "minAmount",
+        "required": false
+      },
+      {
+        "name": "joinKeyFieldName",
+        "required": false
+      },
+      {
+        "name": "originFieldName",
+        "required": false
+      },
+      {
+        "name": "lineKeyColumn",
+        "required": false
+      },
+      {
+        "name": "usedTransactionTypes",
+        "required": false
+      },
+      {
+        "name": "matchRules",
+        "required": false
+      },
+      {
+        "name": "isActive",
+        "required": false
+      },
+      {
+        "name": "fields",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.PeakPeriodFacadeServices.delete#PeakPeriod",
+    "description": "Delete a peak period, its run times and its sync overrides.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "peakPeriodId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.PeakPeriodFacadeServices.delete#PeakPeriodRunTime",
+    "description": "Delete one run-time move of a peak period.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "runTimeId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.PeakPeriodFacadeServices.delete#PeakPeriodSync",
+    "description": "Remove one sync pair's override for a peak period; a missing override is fine.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "peakPeriodId",
+        "required": true
+      },
+      {
+        "name": "syncPairId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.PeakPeriodFacadeServices.save#PeakPeriod",
+    "description": "Create or update one peak period for the active tenant. Peak hours are both set or both blank; active periods may not overlap. An omitted hotwaxReadSharePct clears the share, as omitted peak hours clear the hours; an omitted netsuiteSerial keeps the stored value.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "peakPeriodId",
+        "required": false
+      },
+      {
+        "name": "periodName",
+        "required": false
+      },
+      {
+        "name": "fromDate",
+        "required": false
+      },
+      {
+        "name": "thruDate",
+        "required": false
+      },
+      {
+        "name": "peakHoursStart",
+        "required": false
+      },
+      {
+        "name": "peakHoursEnd",
+        "required": false
+      },
+      {
+        "name": "hotwaxReadSharePct",
+        "required": false
+      },
+      {
+        "name": "netsuiteSerial",
+        "required": false
+      },
+      {
+        "name": "isActive",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.PeakPeriodFacadeServices.save#PeakPeriodRunTime",
+    "description": "Create or update one run-time move of a peak period: a run (an automation or an audit) starts at runTime on onDate, or on every day of the period when onDate is blank.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "runTimeId",
+        "required": false
+      },
+      {
+        "name": "peakPeriodId",
+        "required": true
+      },
+      {
+        "name": "automationId",
+        "required": false
+      },
+      {
+        "name": "auditId",
+        "required": false
+      },
+      {
+        "name": "onDate",
+        "required": false
+      },
+      {
+        "name": "runTime",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.PeakPeriodFacadeServices.save#PeakPeriodSync",
+    "description": "Replace one sync pair's override for a peak period. Allowance (15 minutes to 48 hours) and pulse (0, 60, 120, 180, 240 or 360 minutes; 0 is off for the period) are each null for normal; an omitted value clears that field.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "peakPeriodId",
+        "required": true
+      },
+      {
+        "name": "syncPairId",
+        "required": true
+      },
+      {
+        "name": "allowanceMinutes",
+        "required": false
+      },
+      {
+        "name": "pulseEveryMinutes",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.archive#Automation",
+    "description": "Archived one tenant-scoped automation by setting isArchived to Y. DAR-BE-061. What the trash can on the automation dashboard does: the automation leaves the list and stops firing, so it feels removed. NOT the same switch as pause. isActive is pause — a paused automation stays on the list, visibly not running, because pausing is something you undo on Monday. Archiving takes it off the list. Overloading isActive for both would have made pausing an automation delete it from view.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "automationId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.archive#SavedRun",
+    "description": "Archived one tenant-scoped saved run by setting RuleSet.isArchived to Y. DAR-BE-061: the trash can. It leaves Home and the runs list and stops running, so pressing a trash can feels like the run went away. Nothing is deleted. A run owns its results, diff documents and automation executions — the record of what was reconciled and when.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "savedRunId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.create#CsvRun",
+    "description": "Create a tenant-scoped CSV saved run backed by one RuleSet compare scope.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "runName",
+        "required": true
+      },
+      {
+        "name": "description",
+        "required": false
+      },
+      {
+        "name": "file1SystemEnumId",
+        "required": true
+      },
+      {
+        "name": "file2SystemEnumId",
+        "required": true
+      },
+      {
+        "name": "file1CompareColumn",
+        "required": true
+      },
+      {
+        "name": "file2CompareColumn",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.create#Mapping",
+    "description": "Create a reconciliation mapping from two saved JSON schemas and selected id field paths.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "mappingName",
+        "required": true
+      },
+      {
+        "name": "schema1Id",
+        "required": true
+      },
+      {
+        "name": "schema2Id",
+        "required": true
+      },
+      {
+        "name": "schema1FieldPath",
+        "required": true
+      },
+      {
+        "name": "schema2FieldPath",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.create#RuleSetRun",
+    "description": "Create a tenant-scoped saved run backed by one RuleSet compare scope and zero or more initial rules.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "runName",
+        "required": true
+      },
+      {
+        "name": "description",
+        "required": false
+      },
+      {
+        "name": "scopeMode",
+        "required": false
+      },
+      {
+        "name": "file1SystemEnumId",
+        "required": true
+      },
+      {
+        "name": "file1SourceTypeEnumId",
+        "required": false
+      },
+      {
+        "name": "file1SystemMessageRemoteId",
+        "required": false
+      },
+      {
+        "name": "file1NsRestletConfigId",
+        "required": false
+      },
+      {
+        "name": "file1SourceConfigId",
+        "required": false
+      },
+      {
+        "name": "file1SourceConfigType",
+        "required": false
+      },
+      {
+        "name": "file1FileTypeEnumId",
+        "required": false
+      },
+      {
+        "name": "file1SchemaFileName",
+        "required": false
+      },
+      {
+        "name": "file1RecordRootExpression",
+        "required": false
+      },
+      {
+        "name": "file1PrimaryIdExpression",
+        "required": false
+      },
+      {
+        "name": "file1PrimaryIdExpressions",
+        "required": false
+      },
+      {
+        "name": "file1DuplicateKeyHandling",
+        "required": false
+      },
+      {
+        "name": "file1ExtractOptions",
+        "required": false
+      },
+      {
+        "name": "file2SystemEnumId",
+        "required": false
+      },
+      {
+        "name": "file2SourceTypeEnumId",
+        "required": false
+      },
+      {
+        "name": "file2SystemMessageRemoteId",
+        "required": false
+      },
+      {
+        "name": "file2NsRestletConfigId",
+        "required": false
+      },
+      {
+        "name": "file2SourceConfigId",
+        "required": false
+      },
+      {
+        "name": "file2SourceConfigType",
+        "required": false
+      },
+      {
+        "name": "file2FileTypeEnumId",
+        "required": false
+      },
+      {
+        "name": "file2SchemaFileName",
+        "required": false
+      },
+      {
+        "name": "file2RecordRootExpression",
+        "required": false
+      },
+      {
+        "name": "file2PrimaryIdExpression",
+        "required": false
+      },
+      {
+        "name": "file2PrimaryIdExpressions",
+        "required": false
+      },
+      {
+        "name": "file2DuplicateKeyHandling",
+        "required": false
+      },
+      {
+        "name": "file2ExtractOptions",
+        "required": false
+      },
+      {
+        "name": "rules",
+        "required": false
+      },
+      {
+        "name": "file1ExcludeFilters",
+        "required": false
+      },
+      {
+        "name": "file2ExcludeFilters",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.delete#Automation",
+    "description": "Delete one tenant-scoped automation configuration, its source rows, and its execution history rows.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "automationId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.delete#GeneratedOutput",
+    "description": "Delete one scoped generated reconciliation diff output file.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "fileName",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.delete#LifecycleFinding",
+    "description": "DAR-UI-050. Removes a finding a person wrote; its past results stay readable.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationId",
+        "required": true
+      },
+      {
+        "name": "reconciliationRunId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.delete#LifecycleRule",
+    "description": "DAR-UI-050. Removes one rule (one field value) from a lifecycle built from stages.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationId",
+        "required": true
+      },
+      {
+        "name": "fieldId",
+        "required": true
+      },
+      {
+        "name": "value",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.delete#LifecycleStageException",
+    "description": "DAR-UI-050. Removes one stage exception (one value) from a lifecycle built from stages.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationId",
+        "required": true
+      },
+      {
+        "name": "stageRecordType",
+        "required": true
+      },
+      {
+        "name": "fieldId",
+        "required": false
+      },
+      {
+        "name": "value",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.delete#ReconciliationQuestion",
+    "description": "DAR-UI-048. Remove one question. Refused while it has questions under it.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationRunId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.delete#SavedRun",
+    "description": "Delete one tenant-scoped saved run and generated outputs created for it.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "savedRunId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.disable#SavedRun",
+    "description": "Disabled one tenant-scoped saved run by setting RuleSet.isActive to N. DAR-BE-060: runs are retired by disabling, never by deleting. A run owns its results, diff documents and automation executions — deleting it to tidy a list would delete the record of what was reconciled and when. A disabled run stays readable and editable, or it could never be turned back on. What it cannot do is RUN, on either path: the manual runner and the automation executor are gated separately.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "savedRunId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.enable#SavedRun",
+    "description": "Enabled one tenant-scoped saved run by setting RuleSet.isActive to Y. DAR-BE-060: runs are retired by disabling, never by deleting. A run owns its results, diff documents and automation executions — deleting it to tidy a list would delete the record of what was reconciled and when. A disabled run stays readable and editable, or it could never be turned back on. What it cannot do is RUN, on either path: the manual runner and the automation executor are gated separately.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "savedRunId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.import#NetSuiteChecksAsRuns",
+    "description": "DAR-UI-048. Turns the active tenant's NetSuite checks that are not yet in a run into runs: one START per population (account, record type, and how the key is built), each check a yes question under it. Safe to repeat. A check that cannot sit under a START is skipped, and messages say why.",
+    "writes": true,
+    "inputs": []
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.pause#Automation",
+    "description": "Pause one tenant-scoped automation by setting isActive to N. Refused for an automation an audit's checks run through (DAR-BE-199): it runs on the audit's schedule, set in the audit's settings.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "automationId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.repair#ConnectorRecordKeys",
+    "description": "DAR-BE-142 (DAR-BE-115's stored rows). A connector source keeps no record root once saved, so a key stored bare (\"omsOrderId\") compares the extract's {metadata, records} envelope and fails at compare. Folds the root into each bare key of one run's connector sources (\"$.records[*].omsOrderId\"), the form runs made in the app store; rules, filters and everything else are left as they are. dryRun answers the changes without writing them.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "savedRunId",
+        "required": true
+      },
+      {
+        "name": "recordRoot",
+        "required": false
+      },
+      {
+        "name": "dryRun",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.reprocess#AutomationExecution",
+    "description": "Operator re-drive: reset a FAILED or dead-lettered automation execution to PENDING so the retry scanner runs it again, after active-tenant ownership and run-permission validation.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "automationExecutionId",
+        "required": true
+      },
+      {
+        "name": "maxRetryCount",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.restore#Automation",
+    "description": "Restored one tenant-scoped automation by setting isArchived to N. DAR-BE-061. Brings an automation back from Show archived, with its execution history intact. NOT the same switch as pause. isActive is pause — a paused automation stays on the list, visibly not running, because pausing is something you undo on Monday. Archiving takes it off the list. Overloading isActive for both would have made pausing an automation delete it from view.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "automationId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.restore#SavedRun",
+    "description": "Restored one tenant-scoped saved run by setting RuleSet.isArchived to N. DAR-BE-061: the trash can. Brings a run back from Show archived, with its history intact. Nothing is deleted. A run owns its results, diff documents and automation executions — the record of what was reconciled and when.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "savedRunId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.resume#Automation",
+    "description": "Resume one tenant-scoped automation by setting isActive to Y. Refused for an automation an audit's checks run through (DAR-BE-199): it runs on the audit's schedule, set in the audit's settings.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "automationId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.retry#AutomationExecutionFromExtracts",
+    "description": "DAR-BE-142. Retry a FAILED or dead-lettered window from the extracts it already read: a new execution over the same window (an audit's same days) replays the failed attempt's files, so the compare and everything after it run again without reading any system. Refused, in words, when a read did not finish or its file is gone; then reprocess#AutomationExecution reads again.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "automationExecutionId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#Automation",
+    "description": "Create or update a tenant-scoped automation against either an existing saved run or a newly-created saved run payload. An audit's automation keeps the audit's schedule: a change to its scheduleExpr, windowTimeZone or isActive is refused (DAR-BE-199).",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "automationId",
+        "required": false
+      },
+      {
+        "name": "automationName",
+        "required": true
+      },
+      {
+        "name": "description",
+        "required": false
+      },
+      {
+        "name": "inputModeEnumId",
+        "required": true
+      },
+      {
+        "name": "savedRunId",
+        "required": false
+      },
+      {
+        "name": "savedRunType",
+        "required": false
+      },
+      {
+        "name": "savedRun",
+        "required": false
+      },
+      {
+        "name": "newSavedRun",
+        "required": false
+      },
+      {
+        "name": "scheduleExpr",
+        "required": false
+      },
+      {
+        "name": "nextScheduledFireTime",
+        "required": false
+      },
+      {
+        "name": "lastScheduledFireTime",
+        "required": false
+      },
+      {
+        "name": "relativeWindowTypeEnumId",
+        "required": false
+      },
+      {
+        "name": "relativeWindowCount",
+        "required": false
+      },
+      {
+        "name": "customWindowStartDate",
+        "required": false
+      },
+      {
+        "name": "customWindowEndDate",
+        "required": false
+      },
+      {
+        "name": "maxWindowDays",
+        "required": false
+      },
+      {
+        "name": "splitWindowDays",
+        "required": false
+      },
+      {
+        "name": "windowTimeZone",
+        "required": false
+      },
+      {
+        "name": "safeConfigJson",
+        "required": false
+      },
+      {
+        "name": "chatSpaceId",
+        "required": false
+      },
+      {
+        "name": "isActive",
+        "required": false
+      },
+      {
+        "name": "sources",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#DashboardPinnedMappings",
+    "description": "Persist dashboard pinned reconciliation mappings for the authenticated user.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "pinnedReconciliationMappingIds",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#DashboardPinnedSavedRuns",
+    "description": "Persist dashboard pinned saved runs for the authenticated user.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "pinnedSavedRunIds",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#Lifecycle",
+    "description": "DAR-UI-050. Creates a lifecycle from the builder's dropdown choices: a NetSuite account, the record type it starts from, and its stages in order. Writes the start query, one \"is this stage missing?\" query per stage, a rule per question, and the question tree with every ending named. The caller sends record types only; no rule, query or question id crosses the wire.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "nsAuthConfigId",
+        "required": true
+      },
+      {
+        "name": "recordType",
+        "required": true
+      },
+      {
+        "name": "stageRecordTypes",
+        "required": true
+      },
+      {
+        "name": "lateAfterDays",
+        "required": false
+      },
+      {
+        "name": "reconciliationName",
+        "required": false
+      },
+      {
+        "name": "stageReach",
+        "required": false
+      },
+      {
+        "name": "rules",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#LifecycleConclusions",
+    "description": "DAR-UI-052. The rules that name a lifecycle's records: ONE ordered list for the lifecycle. Each is a DarpanConclusion, the places it applies to (none = every place), and conditions on the record's fields (a detail such as hcReturnChannel, or status) that must all hold. At each place the first rule that applies and holds names a record; none leaves it Unexplained. Drawn on every run, and onto new places when the stages change or a finding is written. Replaces the list; an empty list clears it.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationId",
+        "required": true
+      },
+      {
+        "name": "conclusions",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#LifecycleDetails",
+    "description": "DAR-UI-050. What a lifecycle's records show beside the standard columns (order, date, status, customer, total, shipping method, reference): custom body fields such as HC Order Id or eTail Order Id, in order, on every one of its checks. Replaces the list.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationId",
+        "required": true
+      },
+      {
+        "name": "details",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#LifecycleFinding",
+    "description": "DAR-UI-050. A finding a person writes for a stage of a lifecycle built from stages: the records that reached the stage and whose field matches (\"Items Backordered more than 0\"), a place of its own.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationId",
+        "required": true
+      },
+      {
+        "name": "stageRecordType",
+        "required": true
+      },
+      {
+        "name": "fieldId",
+        "required": true
+      },
+      {
+        "name": "fieldLabel",
+        "required": false
+      },
+      {
+        "name": "op",
+        "required": false
+      },
+      {
+        "name": "value",
+        "required": true
+      },
+      {
+        "name": "valueLabel",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#LifecycleRule",
+    "description": "DAR-UI-050. Adds a rule to a lifecycle built from stages: leave out the start's records whose field has this value (NO_VALUE for \"has no value\"). The field joins the start's query; the rule is an EXCLUDE_IN filter on the start, so a left-out record is in no place. Adding a value already there changes nothing.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationId",
+        "required": true
+      },
+      {
+        "name": "fieldId",
+        "required": true
+      },
+      {
+        "name": "fieldLabel",
+        "required": false
+      },
+      {
+        "name": "value",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#LifecycleStageException",
+    "description": "DAR-UI-050. A stage is not expected of a record whose field has this value (\"Fulfillment, when Shipping Method is Store Pickup\"): written on every check of the lifecycle that asks about the stage, so such a record counts as having it. One field per stage; adding a value already there changes nothing.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationId",
+        "required": true
+      },
+      {
+        "name": "stageRecordType",
+        "required": true
+      },
+      {
+        "name": "fieldId",
+        "required": true
+      },
+      {
+        "name": "fieldLabel",
+        "required": false
+      },
+      {
+        "name": "value",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#LifecycleStages",
+    "description": "DAR-UI-050. Changes a lifecycle's stages: their order, or which they are. The old stage questions are turned off (past runs stay readable) and new ones compiled under the same start, so filters stay; stage exceptions follow their stage. A name still as generated follows the new order.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationId",
+        "required": true
+      },
+      {
+        "name": "stageRecordTypes",
+        "required": true
+      },
+      {
+        "name": "stageReach",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#Mapping",
+    "description": "Update an existing two-source mapping for darpan-ui settings workflows.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationMappingId",
+        "required": true
+      },
+      {
+        "name": "mappingName",
+        "required": true
+      },
+      {
+        "name": "schema1Id",
+        "required": true
+      },
+      {
+        "name": "schema2Id",
+        "required": true
+      },
+      {
+        "name": "schema1FieldPath",
+        "required": true
+      },
+      {
+        "name": "schema2FieldPath",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#Reconciliation",
+    "description": "DAR-UI-048. Create or update a run: the container of a flowchart of questions.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationId",
+        "required": false
+      },
+      {
+        "name": "reconciliationName",
+        "required": false
+      },
+      {
+        "name": "description",
+        "required": false
+      },
+      {
+        "name": "defaultTimeWindow",
+        "required": false
+      },
+      {
+        "name": "lateAfterDays",
+        "required": false
+      },
+      {
+        "name": "notFindingPlaces",
+        "required": false
+      },
+      {
+        "name": "isActive",
+        "required": false
+      },
+      {
+        "name": "isArchived",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#ReconciliationQuestion",
+    "description": "DAR-UI-048. Create or update one question of a run's flowchart. Every tree rule is enforced here (RunFlowchartTree), not only in the UI.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationId",
+        "required": true
+      },
+      {
+        "name": "reconciliationRunId",
+        "required": false
+      },
+      {
+        "name": "ruleSetId",
+        "required": true
+      },
+      {
+        "name": "runName",
+        "required": false
+      },
+      {
+        "name": "questionRole",
+        "required": false
+      },
+      {
+        "name": "parentReconciliationRunId",
+        "required": false
+      },
+      {
+        "name": "parentBranch",
+        "required": false
+      },
+      {
+        "name": "noOutcomeLabel",
+        "required": false
+      },
+      {
+        "name": "runSequence",
+        "required": false
+      },
+      {
+        "name": "isActive",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#RuleSetRun",
+    "description": "Update configuration and, when provided, the executable rules for a tenant-scoped RuleSet-backed saved run.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "savedRunId",
+        "required": true
+      },
+      {
+        "name": "runName",
+        "required": true
+      },
+      {
+        "name": "description",
+        "required": false
+      },
+      {
+        "name": "file1SystemEnumId",
+        "required": true
+      },
+      {
+        "name": "file1SourceTypeEnumId",
+        "required": false
+      },
+      {
+        "name": "file1SystemMessageRemoteId",
+        "required": false
+      },
+      {
+        "name": "file1NsRestletConfigId",
+        "required": false
+      },
+      {
+        "name": "file1SourceConfigId",
+        "required": false
+      },
+      {
+        "name": "file1SourceConfigType",
+        "required": false
+      },
+      {
+        "name": "file1FileTypeEnumId",
+        "required": false
+      },
+      {
+        "name": "file1SchemaFileName",
+        "required": false
+      },
+      {
+        "name": "file1RecordRootExpression",
+        "required": false
+      },
+      {
+        "name": "file1PrimaryIdExpression",
+        "required": false
+      },
+      {
+        "name": "file1PrimaryIdExpressions",
+        "required": false
+      },
+      {
+        "name": "file2SystemEnumId",
+        "required": false
+      },
+      {
+        "name": "file2SourceTypeEnumId",
+        "required": false
+      },
+      {
+        "name": "file2SystemMessageRemoteId",
+        "required": false
+      },
+      {
+        "name": "file2NsRestletConfigId",
+        "required": false
+      },
+      {
+        "name": "file2SourceConfigId",
+        "required": false
+      },
+      {
+        "name": "file2SourceConfigType",
+        "required": false
+      },
+      {
+        "name": "file2FileTypeEnumId",
+        "required": false
+      },
+      {
+        "name": "file2SchemaFileName",
+        "required": false
+      },
+      {
+        "name": "file2RecordRootExpression",
+        "required": false
+      },
+      {
+        "name": "file2PrimaryIdExpression",
+        "required": false
+      },
+      {
+        "name": "file2PrimaryIdExpressions",
+        "required": false
+      },
+      {
+        "name": "file1ExtractOptions",
+        "required": false
+      },
+      {
+        "name": "file2ExtractOptions",
+        "required": false
+      },
+      {
+        "name": "rules",
+        "required": false
+      },
+      {
+        "name": "file1ExcludeFilters",
+        "required": false
+      },
+      {
+        "name": "file2ExcludeFilters",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.save#SavedRunName",
+    "description": "Rename one tenant-scoped saved run without changing its source or rule configuration.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "savedRunId",
+        "required": true
+      },
+      {
+        "name": "runName",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.subscribe#RunNotification",
+    "description": "Subscribe the caller to completion notification for one active run, snapshotting their default chat space.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationRunResultId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.ReconciliationFacadeServices.unsubscribe#RunNotification",
+    "description": "Remove the caller's notify-me subscription for one run. Caller-scoped: only the caller's own row for that run is ever deleted. Reports an ERROR when there was nothing to remove instead of reporting success — a retried automation carries subscriptions forward onto the new attempt's run-result row, so a miss on an older id can mean the subscription is alive somewhere else and still due to fire.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reconciliationRunResultId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.SettingsFacadeServices.save#TenantSettings",
+    "description": "Save active-tenant settings shared by users in the tenant.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "timeZone",
+        "required": false
+      },
+      {
+        "name": "streaksChatSpaceId",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.SettingsFacadeServices.save#UserNotificationDefault",
+    "description": "Set or clear the caller's default chat space for the active tenant. Personal preference — no tenant write access required.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "chatSpaceId",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.SettingsFacadeServices.send#ChatSpaceTest",
+    "description": "DAR-UI-123. Posts one short test message to one of the active tenant's chat spaces, the way run notifications are delivered (Google Chat or Slack webhook, or the Slack bot). Answers ok, or why the space did not take it in plain words. Needs edit access to the tenant, as editing a space does.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "chatSpaceId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.SettingsFacadeServices.set#NotificationRoute",
+    "description": "DAR-UI-123. Moves one thing that posts to chat to another of the active tenant's spaces, or to none. Writes only that source's space field, nothing else on it. The space must be the tenant's and switched on; the automation, audit or deployment must be the tenant's. Needs edit access to the tenant, and for an audit's update tenant admin rights as well (as save#AuditSettings asks for its runEmail), and for a query schedule too (as save#TenantQuerySchedule does). A query schedule always posts somewhere: to stop it, switch it off on the Queries page.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "sourceType",
+        "required": true
+      },
+      {
+        "name": "sourceId",
+        "required": false
+      },
+      {
+        "name": "chatSpaceId",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.SourceEndpointFacadeServices.store#SourceConfigEndpointAccess",
+    "description": "Replace this config's endpoint enablement. Endpoints omitted from enabledSystemEnumIds are explicitly disabled; endpoints included have any prior 'N' row flipped back to 'Y'. Absent rows mean enabled, so a fully-enabled config stores nothing new.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "configTypeEnumId",
+        "required": true
+      },
+      {
+        "name": "configId",
+        "required": true
+      },
+      {
+        "name": "enabledSystemEnumIds",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.SyncPulseFacadeServices.delete#SyncPair",
+    "description": "Delete a sync pair with its peak-period overrides, samples and tracked orders.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "syncPairId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.SyncPulseFacadeServices.save#SyncPair",
+    "description": "Create or update one sync pair of the active tenant. A blank pulseEveryMinutes is pulse off and a blank chatSpaceId is no chat space (both stored null, never the old value); isActive and hourlySummary keep the stored value when omitted. One pair per automation; a pulse needs HotWax orders upstream.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "syncPairId",
+        "required": false
+      },
+      {
+        "name": "automationId",
+        "required": false
+      },
+      {
+        "name": "upstreamSide",
+        "required": false
+      },
+      {
+        "name": "allowanceMinutes",
+        "required": false
+      },
+      {
+        "name": "pulseEveryMinutes",
+        "required": false
+      },
+      {
+        "name": "chatSpaceId",
+        "required": false
+      },
+      {
+        "name": "hourlySummary",
+        "required": false
+      },
+      {
+        "name": "isActive",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.TenantConfigFacadeServices.preview#TenantConfigRestore",
+    "description": "What restoring one of the active tenant's config versions would do, writing nothing. What the version holds is put back; a statement added since is switched off and a check link added since removed; runs added since are kept. Pass planHash to restore#TenantConfigVersion to apply exactly this.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "id",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.TenantConfigFacadeServices.restore#TenantConfigVersion",
+    "description": "Restores one of the active tenant's config versions by applying exactly the plan preview#TenantConfigRestore showed: the current config is kept as a version first (\"Before restoring version N\"), then the restore is written and kept as a version (\"Restored version N\"). One transaction: all of it or none of it. Needs edit access to the tenant.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "id",
+        "required": true
+      },
+      {
+        "name": "planHash",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.TenantConfigFacadeServices.snapshot#TenantConfig",
+    "description": "Keeps the active tenant's audit config as a new version when it changed since the latest one. Needs edit access to the tenant.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "reason",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.TenantScriptFacadeServices.save#TenantQueryPins",
+    "description": "DAR-UI-138. Pin the signed-in user's queries for the active tenant (a personal preference, so view access is enough). Keeps the order given, once each, and only the active tenant's queries: an unknown id or another tenant's is dropped, never an error. Stored per user and per tenant, so pins in one tenant leave the others alone.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "pinnedQueryIds",
+        "required": false
+      }
+    ]
   }
 ]

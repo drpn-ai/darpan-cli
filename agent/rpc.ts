@@ -36,9 +36,9 @@ const REQUEST_TIMEOUT_MS = 120_000
 /** Final review Important 1: a run starter holds the request while it works (run#SavedRunDiff is synchronous), and the
  *  AWS load balancer's idle timeout is 300 s, so these wait past it; everything else (the fresh queries too) keeps 120 s. */
 export const RUN_REQUEST_TIMEOUT_MS = 330_000
-const RUN_STARTERS = new Set(['run#SavedRunDiff', 'run#Reconciliation', 'run#AutomationNow', 'run#Audit', 'retry#AuditCheck', 'run#TenantScript',
+const RUN_STARTERS = new Set(['run#SavedRunDiff', 'run#Reconciliation', 'run#AutomationNow', 'run#Audit', 'retry#AuditCheck', 'run#TenantQuery',
   // a send that timed out on our side may already have posted; waiting longer keeps an agent from posting twice
-  'run#TenantScriptDeployment'])
+  'run#TenantQuerySchedule', 'verify#AuditFindings'])
 
 /** How long the CLI waits for one method's answer. */
 export function requestTimeoutMs(method: string): number {

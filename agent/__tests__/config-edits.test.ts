@@ -1,7 +1,7 @@
 // DAR-CLI-007: conclusions show / save / code and automation sync. Both writers preview by default, write only with
 // --yes, and send nothing the save does not read.
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -153,4 +153,104 @@ test('bin/darpan hands every command\'s first word to the Node CLI', () => {
   assert.ok(line, 'the launcher\'s run_agent case line')
   const words = new Set(line.replace(/\).*$/, '').trim().split('|'))
   for (const first of new Set(COMMANDS.map((c) => c.name.split(' ')[0]!))) assert.ok(words.has(first), `bin/darpan does not pass "${first}" to the Node CLI`)
+})
+
+test('conclusions save --file: the config folder, links into it, non-files and oversize files are refused; --file and --tree together is a usage error', async () => {
+  // Moved from the deleted `script run` tests (DAR-CLI-008): conclusions save is now the shared file reader's caller.
+  const cfg = signedIn()
+  const other = mkdtempSync(join(tmpdir(), 'darpan-tree-files-'))
+  writeFileSync(join(cfg, 'secret.txt'), 'x')
+  const link = join(other, 'link.json')
+  symlinkSync(join(cfg, 'config.json'), link)
+  const backend = (argv: string[]) => {
+    const b = fakeBackend({ [GET_TREE]: tree })
+    return run(argv, { env: { DARPAN_CONFIG_DIR: cfg }, fetchImpl: b.fetchImpl, openUrl: () => {}, sleep: async () => {} }).then((out) => ({ ...out, ...b }))
+  }
+  for (const path of [join(cfg, 'config.json'), join(cfg, 'secret.txt'), link]) {
+    const r = await backend(['conclusions', 'save', 'RS_1', '--file', path])
+    assert.equal(r.exitCode, EXIT.usage, `${path}: ${r.stderr}`)
+    assert.match(r.stderr, /config folder/)
+    assert.equal(r.requests.length, 0, 'nothing is read from the server before the file is accepted')
+  }
+  const notFile = await backend(['conclusions', 'save', 'RS_1', '--file', other])
+  assert.equal(notFile.exitCode, EXIT.usage)
+  assert.match(notFile.stderr, /not a regular file/)
+  const big = join(other, 'big.json')
+  writeFileSync(big, 'x'.repeat(2_100_000))
+  const tooBig = await backend(['conclusions', 'save', 'RS_1', '--file', big])
+  assert.equal(tooBig.exitCode, EXIT.usage)
+  assert.match(tooBig.stderr, /limited to 500,000/)
+  const both = await backend(['conclusions', 'save', 'RS_1', '--file', big, '--tree', '{}'])
+  assert.equal(both.exitCode, EXIT.usage)
+  assert.deepEqual(COMMANDS.find((x) => x.name === 'conclusions save')!.cliOnly, ['file'])
+})
+
+// ---- DAR-CLI-008: config restore previews by default and restores the previewed plan only with --yes ----------------
+const PREVIEW_RESTORE = 'facade.TenantConfigFacadeServices.preview#TenantConfigRestore'
+const RESTORE = 'facade.TenantConfigFacadeServices.restore#TenantConfigVersion'
+const version = { id: 'CV_7', seq: 7, createdDate: '2026-11-25T10:00:00Z' }
+const plan = { lines: [{ kind: 'STATEMENT', ref: 'R4', label: 'Every order is billed', action: 'UPDATE' }] }
+const preview = () => ({ ok: true, version, plan, planHash: 'HASH7' })
+
+test('config restore without --yes only previews, and answers the planHash a restore must name', async () => {
+  const r = await go(['config', 'restore', 'CV_7'], { [PREVIEW_RESTORE]: preview })
+  assert.equal(r.exitCode, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.preview, true)
+  assert.equal(out.restored, false)
+  assert.deepEqual(out.version, version)
+  assert.deepEqual(out.plan, plan)
+  assert.equal(out.planHash, 'HASH7')
+  assert.match(out.next, /--yes --plan HASH7/)
+  assert.deepEqual(r.requests.map((q) => q.method), [PREVIEW_RESTORE])
+  assert.deepEqual(r.requests[0]!.params, { id: 'CV_7' })
+})
+
+test('config restore preview with blocking items says so, and offers no --yes', async () => {
+  const blocked = () => ({ ok: true, version, plan: { ...plan, blocking: [{ message: 'Run RS_9 is gone; restore it first.' }] }, planHash: 'HASH7' })
+  const r = await go(['config', 'restore', 'CV_7'], { [PREVIEW_RESTORE]: blocked })
+  assert.equal(r.exitCode, 0, r.stderr)
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.blocked, true)
+  assert.deepEqual(out.blocking, ['Run RS_9 is gone; restore it first.'])
+  assert.equal(out.planHash, undefined, 'a blocked plan cannot be restored, so no hash to pass')
+  assert.doesNotMatch(out.next, /--yes/)
+})
+
+test('config restore --yes restores exactly the plan the person saw (--plan), without previewing again', async () => {
+  const before = { id: 'CV_9', seq: 9 }
+  const after = { id: 'CV_10', seq: 10 }
+  const r = await go(['config', 'restore', 'CV_7', '--yes', '--plan', 'HASH7'], { [PREVIEW_RESTORE]: preview, [RESTORE]: () => ({ ok: true, restored: true, before, after, plan }) })
+  assert.equal(r.exitCode, 0, r.stderr)
+  assert.deepEqual(r.requests.map((q) => q.method), [RESTORE], 'a second preview would pick up a plan nobody saw')
+  assert.deepEqual(r.requests[0]!.params, { id: 'CV_7', planHash: 'HASH7' })
+  const out = JSON.parse(r.stdout)
+  assert.equal(out.restored, true)
+  assert.deepEqual(out.before, before)
+  assert.deepEqual(out.after, after)
+})
+
+test('config restore --yes without --plan is a usage error and sends nothing', async () => {
+  const r = await go(['config', 'restore', 'CV_7', '--yes'], { [PREVIEW_RESTORE]: preview })
+  assert.equal(r.exitCode, EXIT.usage)
+  assert.equal(r.requests.length, 0)
+  assert.match(r.stderr, /--plan/)
+})
+
+test('config restore reports a refused (stale) restore as failed, in the server\'s words', async () => {
+  const r = await go(['config', 'restore', 'CV_7', '--yes', '--plan', 'HASH7'], {
+    [RESTORE]: () => ({ ok: false, errors: ['The config changed since the preview. Preview the restore again.'] }),
+  })
+  assert.equal(r.exitCode, EXIT.failed)
+  assert.match(r.stderr, /changed since the preview/)
+})
+
+test('config restore needs a version id, is a destructive MCP tool, and its methods are allowlisted', async () => {
+  const r = await go(['config', 'restore'], {})
+  assert.equal(r.exitCode, EXIT.usage)
+  assert.equal(r.requests.length, 0)
+  const command = COMMANDS.find((c) => c.name === 'config restore')!
+  assert.deepEqual(annotationsFor(command), { readOnlyHint: false, destructiveHint: true })
+  const allowed = new Set(loadAllowedMethods().map((m) => m.method))
+  assert.ok(allowed.has(PREVIEW_RESTORE) && allowed.has(RESTORE))
 })

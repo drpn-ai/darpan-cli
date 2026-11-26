@@ -60,7 +60,7 @@ darpan guide                         # the usual path, limits and roles
 | --- | --- |
 | `darpan login` / `logout` / `whoami` | Sign in through the browser, end the session, show who you are, your tenant and role |
 | `darpan tenants` / `tenant use <id>` | Your tenants; choose one for later commands (local only) |
-| `darpan api` / `call <method>` | The allowlisted methods; call one |
+| `darpan api` / `call <method> [--yes]` | Every method your role can use, each marked `writes: true` if it changes something; call one (a write only with `--yes`) |
 | `darpan systems` / `describe <id>` | Your NetSuite, HotWax OMS and Shopify connections; what one holds and how to query it |
 | `darpan runs` | The saved runs you can start |
 | `darpan run start <id>` / `run status <id>` / `run wait <id>` | Start a saved run, check it, wait for it |
@@ -72,13 +72,13 @@ darpan guide                         # the usual path, limits and roles
 | `darpan audit extracts --check C --period P [--system S]` | What each system's read wrote for a check on one morning; `--system` returns that file |
 | `darpan month export --month YYYY-MM` | A month's open findings as one JSON document |
 | `darpan query run --connection <id>` | A fresh read-only SuiteQL or GraphQL question to one system (200 rows by default, 2,000 at most) |
-| `darpan scripts` / `script run` / `script save` / `script delete` | Tenant scripts: list, try on a result or sample rows, save, delete |
-| `darpan deployments` / `deploy` / `deploy off` / `deploy delete` / `deploy preview` / `deploy send` | Schedule a script to post to a chat space; switch off, delete, preview without sending, post now |
+| `darpan conclusions show\|save\|code` / `automation sync <id>` | A run's cause tree: read it, replace it (preview first, `--yes` saves), add a cause code; copy a run's sources and filters onto its automation |
+| `darpan config restore <versionId> [--yes --plan <hash>]` | Put the tenant's config back to an earlier version: the preview answers a planHash, and `--yes --plan <hash>` restores exactly that plan |
 | `darpan mcp` / `darpan guide` | Serve every command as MCP tools over stdio; print the guide |
 
 Output is JSON on stdout. An error is JSON on stderr, `{"error", "next"}`, and `next` says what to do. Exit codes: 0 ok, 1 unreachable, 2 usage, 3 not signed in, 4 throttled, 5 failed, 7 not allowed.
 
-What it cannot do: change accounts, connections, settings or automations (those stay in the Darpan app); write to NetSuite, HotWax OMS or Shopify (queries are read-only and the server refuses anything else); run anything but tenant scripts. Starting a run needs the run role, and scripts need editor or admin.
+What it does and does not do: anything your role can do in the Darpan app, checked by the server on every call (most edits go through `darpan call <method> --yes`). Connection credentials (passwords, tokens, keys, webhook URLs), sign-in, two-factor, passkeys, CLI access and Shopify or Slack installs stay in the app: a secret given to an AI is kept in its transcript. It never writes to NetSuite, HotWax OMS or Shopify (queries are read-only and the server refuses anything else).
 
 Output shape: `report` and `findings show` print the audit page's own documents, `darpan.audit.report/v1` and `darpan.audit.finding/v1` (DAR-CLI-004; before, they printed a GraphQL response that left out most record fields, and `findings show --fields` is gone). `findings list` (one page) prints the GraphQL response untouched; `findings list --all` and `month export` print one document, `{"query", "sortKey", "reverse", "edges": [{"cursor", "node"}, ...]}`.
 

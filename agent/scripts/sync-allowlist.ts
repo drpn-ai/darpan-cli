@@ -8,6 +8,23 @@ import { fileURLToPath } from 'node:url'
 export interface AllowedMethod {
   method: string
   description: string
+  /** DAR-CLI-008: true when the method can change something; `darpan call` asks for --yes before it sends one. */
+  writes: boolean
+  /** DAR-CLI-008: the method's parameters from the contract, so a refusal or `darpan api` can say what to send. */
+  inputs: { name: string; required: boolean }[]
+}
+
+/** Verbs that only read. Any other verb (save, run, apply, an unknown one) counts as a write, so a new verb fails safe. */
+const READ_VERBS = new Set(['get', 'list', 'search', 'preview', 'test', 'find', 'inspect', 'describe', 'validate', 'infer', 'flatten'])
+
+/** Methods whose verb says run but that only read: the fresh read-only queries (`darpan query run`). */
+const READ_METHODS = new Set(['facade.NetSuiteQueryFacadeServices.run#NsSuiteQlAgentQuery', 'facade.HotWaxOmsFacadeServices.run#OmsGraphqlAgentQuery',
+  'facade.ShopifyFacadeServices.run#ShopifyGraphqlAgentQuery'])
+
+export function isWriteMethod(method: string): boolean {
+  if (READ_METHODS.has(method)) return false
+  const verb = method.slice(method.lastIndexOf('.') + 1).split('#')[0] ?? ''
+  return !READ_VERBS.has(verb)
 }
 
 /** The quoted method strings inside `ALLOWED = ( [ ... ]`, in source order, comments ignored. */
@@ -31,8 +48,11 @@ export function buildAllowedMethods(source: string, openapi?: any): AllowedMetho
   return extractAllowed(source).map((method) => {
     const base = openapi?.['x-darpan-methods']?.[method]
     const schemas = openapi?.components?.schemas ?? {}
-    const description = base ? (schemas[`${base}Params`]?.description ?? '') : ''
-    return { method, description: String(description).replace(/\s+/g, ' ').trim() }
+    const params = base ? schemas[`${base}Params`] : undefined
+    const description = params?.description ?? ''
+    const required = new Set<string>(params?.required ?? [])
+    const inputs = Object.keys(params?.properties ?? {}).map((name) => ({ name, required: required.has(name) }))
+    return { method, description: String(description).replace(/\s+/g, ' ').trim(), writes: isWriteMethod(method), inputs }
   })
 }
 

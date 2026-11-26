@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -16,12 +16,6 @@ const ENDPOINTS = 'facade.SourceEndpointFacadeServices.list#SourceConfigEndpoint
 const NS_QUERY = 'facade.NetSuiteQueryFacadeServices.run#NsSuiteQlAgentQuery'
 const OMS_QUERY = 'facade.HotWaxOmsFacadeServices.run#OmsGraphqlAgentQuery'
 const SH_QUERY = 'facade.ShopifyFacadeServices.run#ShopifyGraphqlAgentQuery'
-const TS = 'facade.TenantScriptFacadeServices'
-const SCRIPT_RUN = `${TS}.run#TenantScript`
-const DEPLOY_RUN = `${TS}.run#TenantScriptDeployment`
-const DEPLOY_SAVE = `${TS}.save#TenantScriptDeployment`
-const DEPLOY_LIST = `${TS}.list#TenantScriptDeployments`
-const OUTPUTS = 'facade.ReconciliationFacadeServices.list#GeneratedOutputs'
 
 function workDir() {
   return mkdtempSync(join(tmpdir(), 'darpan-cli-qs-'))
@@ -126,207 +120,16 @@ test('- on a terminal is a usage error, not a hang', () => {
   assert.equal(readStdinText(undefined, () => 'x'), 'x')
 })
 
-test('rows from query run feed script run --rows', async () => {
-  const dir = workDir()
-  const q = await go(['query', 'run', '--connection', 'NS1', '--suiteql', 'SELECT id FROM t'], { ...connections, [NS_QUERY]: () => ({ ok: true, rows: [{ id: '1' }, { id: '2' }], rowCount: 2 }) }, undefined, dir)
-  const file = join(dir, 'rows.json')
-  writeFileSync(file, q.stdout)
-  const bodyFile = join(dir, 'body.jexl')
-  writeFileSync(bodyFile, 'rows.size()')
-  const r = await go(['script', 'run', '--body', bodyFile, '--rows', file], { [SCRIPT_RUN]: () => ({ ok: true, run: { ok: true, result: 2 }, inputSummary: { source: 'SAMPLE', characters: 10 } }) }, undefined, dir)
-  assert.equal(r.exitCode, 0, r.stderr)
-  const params = called(r, SCRIPT_RUN)[0]!.params
-  assert.equal(params.inputSource, 'SAMPLE')
-  assert.equal(params.scriptBody, 'rows.size()')
-  assert.deepEqual(JSON.parse(params.inputJson).rows, [{ id: '1' }, { id: '2' }])
-  assert.equal(params.tenantScriptId, undefined)
-  assert.equal(JSON.parse(r.stdout).run.result, 2)
-})
-
-test('script run: saved script on a run result, sample, and the input rules', async () => {
-  const dir = workDir()
-  const ok = { [SCRIPT_RUN]: () => ({ ok: true, run: { ok: true, result: 'x' } }) }
-  const a = await go(['script', 'run', '--saved', 'S1', '--result', 'run-1.json'], ok, undefined, dir)
-  assert.deepEqual(called(a, SCRIPT_RUN)[0]!.params, { tenantScriptId: 'S1', inputSource: 'RUN_RESULT', fileName: 'run-1.json' })
-  const b = await go(['script', 'run', '--saved', 'S1', '--sample'], ok, undefined, dir)
-  assert.deepEqual(called(b, SCRIPT_RUN)[0]!.params, { tenantScriptId: 'S1', inputSource: 'SAMPLE' })
-  for (const argv of [
-    ['script', 'run', '--saved', 'S1'],
-    ['script', 'run', '--sample'],
-    ['script', 'run', '--saved', 'S1', '--sample', '--result', 'f.json'],
-    ['script', 'run', '--saved', 'S1', '--body', join(dir, 'x'), '--sample'],
-    ['script', 'run', '--saved', 'S1', '--rows', join(dir, 'missing.json')],
-  ]) {
-    const r = await go(argv, ok, undefined, dir)
-    assert.equal(r.exitCode, EXIT.usage, `${argv.join(' ')}: ${r.stderr}`)
-    assert.equal(called(r, SCRIPT_RUN).length, 0)
-  }
-})
-
-test('script run --rows refuses a file over the 2,000,000 character limit', async () => {
-  const dir = workDir()
-  const big = join(dir, 'big.json')
-  writeFileSync(big, JSON.stringify({ rows: ['x'.repeat(2_000_001)] }))
-  const r = await go(['script', 'run', '--saved', 'S1', '--rows', big], { [SCRIPT_RUN]: () => ({ ok: true }) }, undefined, dir)
-  assert.equal(r.exitCode, EXIT.usage)
-  assert.match(r.stderr, /2,000,000/)
-  assert.equal(called(r, SCRIPT_RUN).length, 0)
-})
-
-test('scripts, script save and script delete', async () => {
-  const dir = workDir()
-  const body = join(dir, 'b.jexl')
-  writeFileSync(body, 'a < b')
-  const list = await go(['scripts'], { [`${TS}.list#TenantScripts`]: () => ({ ok: true, scripts: [{ tenantScriptId: 'S1', scriptName: 'n' }], library: [{ name: 'd:x', help: 'h' }], limits: {} }) })
-  assert.equal(JSON.parse(list.stdout).scripts[0].tenantScriptId, 'S1')
-  const existing = { tenantScriptId: 'S1', scriptName: 'Old', description: 'keep me', scriptProfile: 'SCRIPT', inputSource: 'RUN_RESULT', sampleInputJson: '{"a":1}', isActive: 'N' }
-  const save = await go(['script', 'save', '--name', 'Daily', '--body', body, '--id', 'S1', '--profile', 'EXPRESSION'], { [`${TS}.list#TenantScripts`]: () => ({ ok: true, scripts: [existing] }), [`${TS}.save#TenantScript`]: () => ({ ok: true, script: { tenantScriptId: 'S1' }, validation: { ok: true } }) }, undefined, dir)
-  assert.equal(save.exitCode, 0, save.stderr)
-  assert.deepEqual(called(save, `${TS}.save#TenantScript`)[0]!.params, { scriptName: 'Daily', scriptBody: 'a < b', tenantScriptId: 'S1', description: 'keep me', scriptProfile: 'EXPRESSION', inputSource: 'RUN_RESULT', sampleInputJson: '{"a":1}', isActive: false })
-  const unknown = await go(['script', 'save', '--name', 'D', '--body', body, '--id', 'NOPE'], { [`${TS}.list#TenantScripts`]: () => ({ ok: true, scripts: [existing] }) }, undefined, dir)
-  assert.equal(unknown.exitCode, EXIT.usage)
-  const noName = await go(['script', 'save', '--body', body], {}, undefined, dir)
-  assert.equal(noName.exitCode, EXIT.usage)
-  const del = await go(['script', 'delete', 'S1'], { [`${TS}.delete#TenantScript`]: () => ({ ok: true }) })
-  assert.deepEqual(called(del, `${TS}.delete#TenantScript`)[0]!.params, { tenantScriptId: 'S1' })
-})
-
-test('deploy without --on saves isActive N', async () => {
-  const handlers = { [DEPLOY_SAVE]: (p: any) => ({ ok: true, deployment: { tenantScriptDeploymentId: 'D1', isActive: p.isActive ? 'Y' : 'N' } }) }
-  const off = await go(['deploy', '--script', 'S1', '--input', 'RUN1', '--space', 'CS1', '--daily', '09:05'], handlers)
-  assert.equal(off.exitCode, 0, off.stderr)
-  assert.deepEqual(called(off, DEPLOY_SAVE)[0]!.params, { tenantScriptId: 'S1', inputSavedRunId: 'RUN1', chatSpaceId: 'CS1', scheduleExpr: '0 5 9 * * ?', isActive: false })
-  assert.equal(JSON.parse(off.stdout).deployment.isActive, 'N')
-  const on = await go(['deploy', '--script', 'S1', '--input', 'RUN1', '--space', 'CS1', '--cron', '0 0 7 * * ?', '--on'], handlers)
-  assert.deepEqual(called(on, DEPLOY_SAVE)[0]!.params, { tenantScriptId: 'S1', inputSavedRunId: 'RUN1', chatSpaceId: 'CS1', scheduleExpr: '0 0 7 * * ?', isActive: true })
-  for (const argv of [
-    ['deploy', '--script', 'S1', '--space', 'CS1', '--daily', '09:00'],
-    ['deploy', '--script', 'S1', '--input', 'RUN1', '--space', 'CS1', '--daily', '25:00'],
-    ['deploy', '--script', 'S1', '--input', 'RUN1', '--space', 'CS1', '--daily', '9:5'],
-    ['deploy', '--script', 'S1', '--input', 'RUN1', '--space', 'CS1'],
-    ['deploy', '--script', 'S1', '--input', 'RUN1', '--space', 'CS1', '--daily', '09:00', '--cron', '0 0 9 * * ?'],
-    ['deploy', '--input', 'RUN1', '--space', 'CS1', '--daily', '09:00'],
-  ]) {
-    const r = await go(argv, handlers)
-    assert.equal(r.exitCode, EXIT.usage, `${argv.join(' ')}: ${r.stderr}`)
-    assert.equal(called(r, DEPLOY_SAVE).length, 0)
-  }
-})
-
-const dep = { tenantScriptDeploymentId: 'D1', tenantScriptId: 'S1', scheduleExpr: '0 0 9 * * ?', inputSavedRunId: 'RUN1', chatSpaceId: 'CS1', isActive: 'Y' }
-
-test('deployments, deploy off and deploy delete', async () => {
-  const handlers = { [DEPLOY_LIST]: () => ({ ok: true, deployments: [dep], timeZone: 'America/New_York' }), [DEPLOY_SAVE]: () => ({ ok: true, deployment: { ...dep, isActive: 'N' } }), [`${TS}.delete#TenantScriptDeployment`]: () => ({ ok: true }) }
-  const list = await go(['deployments', '--script', 'S1'], handlers)
-  assert.deepEqual(called(list, DEPLOY_LIST)[0]!.params, { tenantScriptId: 'S1' })
-  assert.equal(JSON.parse(list.stdout).timeZone, 'America/New_York')
-  const off = await go(['deploy', 'off', 'D1'], handlers)
-  assert.equal(off.exitCode, 0, off.stderr)
-  assert.deepEqual(called(off, DEPLOY_SAVE)[0]!.params, { tenantScriptDeploymentId: 'D1', tenantScriptId: 'S1', scheduleExpr: '0 0 9 * * ?', inputSavedRunId: 'RUN1', chatSpaceId: 'CS1', isActive: false })
-  const missing = await go(['deploy', 'off', 'NOPE'], handlers)
-  assert.equal(missing.exitCode, EXIT.usage)
-  const del = await go(['deploy', 'delete', 'D1'], handlers)
-  assert.deepEqual(called(del, `${TS}.delete#TenantScriptDeployment`)[0]!.params, { tenantScriptDeploymentId: 'D1' })
-})
-
-test('deploy preview and deploy send run the deployment as its schedule would, send=false then send=true', async () => {
-  const sent: Record<string, any> = { status: 'SENT', message: 'Posted to Ops.', text: 'text to post' }
-  let outcome: Record<string, any> = { status: 'PREVIEW', message: 'Preview only: nothing was sent.', text: 'text to post' }
-  const handlers = { [DEPLOY_RUN]: () => ({ ok: true, outcome, deployment: dep }) }
-  const preview = await go(['deploy', 'preview', 'D1'], handlers)
-  assert.equal(preview.exitCode, 0, preview.stderr)
-  assert.deepEqual(called(preview, DEPLOY_RUN)[0]!.params, { tenantScriptDeploymentId: 'D1', send: false })
-  assert.equal(JSON.parse(preview.stdout).outcome.text, 'text to post')
-  outcome = sent
-  const send = await go(['deploy', 'send', 'D1'], handlers)
-  assert.equal(send.exitCode, 0, send.stderr)
-  assert.deepEqual(called(send, DEPLOY_RUN)[0]!.params, { tenantScriptDeploymentId: 'D1', send: true })
-  assert.equal(JSON.parse(send.stdout).outcome.status, 'SENT')
-  outcome = { status: 'NOTHING_TO_SEND', message: 'The script returned no text, so nothing was sent.', text: '' }
-  assert.equal((await go(['deploy', 'send', 'D1'], handlers)).exitCode, 0)
-  assert.equal((await go(['deploy', 'send'], handlers)).exitCode, EXIT.usage)
-})
-
-test('deploy send fails when nothing reached the chat space, though the service answered ok', async () => {
-  for (const outcome of [
-    { status: 'NOT_DELIVERED', message: 'The chat space was deleted, switched off or has no webhook.' },
-    { status: 'SCRIPT_ERROR', message: 'Line 3: boom' },
-    { status: 'NO_INPUT', message: 'The saved run has no finished result to read yet.' },
-    { status: 'SCRIPT_MISSING', message: 'The script was deleted or switched off.' },
-    {},
-  ]) {
-    const r = await go(['deploy', 'send', 'D1'], { [DEPLOY_RUN]: () => ({ ok: true, outcome }) })
-    assert.equal(r.exitCode, EXIT.failed, `${outcome.status}: ${r.stderr}`)
-    if (outcome.message) assert.ok(r.stderr.includes(outcome.message), r.stderr)
-  }
-  // a preview that would not post (no input yet) fails too, rather than showing empty text
-  const p = await go(['deploy', 'preview', 'D1'], { [DEPLOY_RUN]: () => ({ ok: true, outcome: { status: 'NO_INPUT', message: 'The saved run has no finished result to read yet.' } }) })
-  assert.equal(p.exitCode, EXIT.failed)
-})
-
-test('every method these commands use is allowlisted, send-now included, and each is described', () => {
+test('every method query run uses is allowlisted, and the command is described', () => {
   const allowed = new Set(loadAllowedMethods().map((m) => m.method))
-  for (const m of [NS_QUERY, OMS_QUERY, SH_QUERY, SCRIPT_RUN, DEPLOY_RUN, DEPLOY_SAVE, DEPLOY_LIST, `${TS}.list#TenantScripts`, `${TS}.save#TenantScript`, `${TS}.delete#TenantScript`, `${TS}.delete#TenantScriptDeployment`, OUTPUTS]) {
+  for (const m of [NS_QUERY, OMS_QUERY, SH_QUERY, NS_LIST, OMS_LIST, SH_LIST]) {
     assert.ok(allowed.has(m), `${m} not allowlisted`)
   }
-  for (const name of ['query run', 'scripts', 'script run', 'script save', 'script delete', 'deployments', 'deploy', 'deploy off', 'deploy delete', 'deploy preview', 'deploy send']) {
-    const c = COMMANDS.find((x) => x.name === name)
-    assert.ok(c, name)
-    assert.equal(c.tenant, 'required')
-    assert.ok(c.description.length > 40, name)
-  }
   const q = COMMANDS.find((x) => x.name === 'query run')!
+  assert.equal(q.tenant, 'required')
   assert.match(q.description, /read-only/i)
   assert.match(q.description, /2,000/)
   assert.match(q.description, /darpan describe/)
-})
-
-test('file inputs: config dir and symlinks refused, oversize refused, inline forms work, both forms is a usage error', async () => {
-  const dir = workDir()
-  const ok = { [SCRIPT_RUN]: () => ({ ok: true, run: { ok: true, result: 1 } }) }
-  const other = workDir()
-  // run() writes config.json into dir; make sure it exists first.
-  const cfg = join(dir, 'cfg')
-  saveConfig(cfg, { current: 'prod', instances: { prod: { url: 'https://api.test', token: 'KEY123', tenant: 'ACME' } } })
-  writeFileSync(join(cfg, 'secret.txt'), 'x')
-  const link = join(other, 'link.json')
-  symlinkSync(join(cfg, 'config.json'), link)
-  for (const argv of [
-    ['script', 'run', '--body', join(cfg, 'config.json'), '--sample'],
-    ['script', 'run', '--body', join(cfg, 'secret.txt'), '--sample'],
-    ['script', 'run', '--body', link, '--sample'],
-    ['script', 'run', '--saved', 'S1', '--rows', link],
-    ['script', 'save', '--name', 'n', '--body', link],
-  ]) {
-    const r = await go(argv, ok, undefined, dir)
-    assert.equal(r.exitCode, EXIT.usage, `${argv.join(' ')}: ${r.stderr}`)
-    assert.match(r.stderr, /config folder/)
-    assert.equal(called(r, SCRIPT_RUN).length, 0)
-  }
-  const big = join(other, 'big.jexl')
-  writeFileSync(big, 'x'.repeat(300_000))
-  const tooBig = await go(['script', 'run', '--body', big, '--sample'], ok, undefined, dir)
-  assert.equal(tooBig.exitCode, EXIT.usage)
-  assert.match(tooBig.stderr, /limited to 64,000/)
-  const notFile = await go(['script', 'run', '--body', other, '--sample'], ok, undefined, dir)
-  assert.equal(notFile.exitCode, EXIT.usage)
-  assert.match(notFile.stderr, /not a regular file/)
-  const longInline = await go(['script', 'run', '--body-text', 'y'.repeat(64_001), '--sample'], ok, undefined, dir)
-  assert.equal(longInline.exitCode, EXIT.usage)
-
-  const inline = await go(['script', 'run', '--body-text', 'rows.size()', '--rows-json', '{"rows":[1]}'], ok, undefined, dir)
-  assert.equal(inline.exitCode, 0, inline.stderr)
-  assert.deepEqual(called(inline, SCRIPT_RUN)[0]!.params, { scriptBody: 'rows.size()', inputSource: 'SAMPLE', inputJson: '{"rows":[1]}' })
-  const both = await go(['script', 'run', '--body-text', 'a', '--body', join(other, 'big.jexl'), '--sample'], ok, undefined, dir)
-  assert.equal(both.exitCode, EXIT.usage)
-  const bothRows = await go(['script', 'run', '--saved', 'S1', '--rows', big, '--rows-json', '{}'], ok, undefined, dir)
-  assert.equal(bothRows.exitCode, EXIT.usage)
-  const badJson = await go(['script', 'run', '--saved', 'S1', '--rows-json', '{nope'], ok, undefined, dir)
-  assert.equal(badJson.exitCode, EXIT.usage)
-  const save = await go(['script', 'save', '--name', 'n', '--body-text', 'a < b'], { [`${TS}.save#TenantScript`]: () => ({ ok: true }) }, undefined, dir)
-  assert.deepEqual(called(save, `${TS}.save#TenantScript`)[0]!.params, { scriptName: 'n', scriptBody: 'a < b' })
-  assert.deepEqual(COMMANDS.find((x) => x.name === 'script run')!.cliOnly, ['body', 'rows'])
-  assert.deepEqual(COMMANDS.find((x) => x.name === 'script save')!.cliOnly, ['body'])
 })
 
 test('final review minor: --offset 0 is accepted, a leading zero is not', async () => {

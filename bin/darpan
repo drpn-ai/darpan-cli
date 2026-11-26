@@ -528,7 +528,7 @@ Data and actions (sign in once with 'darpan login'; these run through Node 22.18
   darpan login | logout | whoami | tenants | tenant use | api | call | systems | describe
   darpan runs | run start|status|wait | result | audits | audit | report | findings | month export
   darpan conclusions show|save|code | automation sync
-  darpan query run | scripts | script run|save|delete | deployments | deploy
+  darpan query run | config restore
   darpan mcp                            Serve all of these as MCP tools (claude mcp add darpan -- darpan mcp)
   darpan guide                          How to use them well: the usual path, limits, roles
   Exit codes: 0 ok, 1 unreachable, 2 usage, 3 not signed in, 4 throttled, 5 failed, 7 not allowed.
@@ -593,7 +593,7 @@ case "$sub" in
   load)             cmd_load "$@" ;;
   update)           cmd_update "$@" ;;
   doctor)           cmd_doctor "$@" ;;
-  login|logout|whoami|tenants|tenant|api|call|systems|describe|runs|run|result|audits|audit|report|findings|conclusions|automation|month|query|scripts|script|deployments|deploy|mcp|guide)
+  login|logout|whoami|tenants|tenant|api|call|systems|describe|runs|run|result|audits|audit|report|findings|conclusions|automation|month|query|config|mcp|guide)
                     run_agent "$sub" "$@" ;;
   version|--version|-v) cmd_version ;;
   help|--help|-h)   cmd_help ;;

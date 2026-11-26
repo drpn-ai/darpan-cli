@@ -79,8 +79,7 @@ test('every MCP tool is classed exactly once, and tools/list says which ones rea
   const byName = new Map<string, any>(replies[0].result.tools.map((t: any) => [t.name, t]))
   assert.deepEqual(byName.get('darpan_findings_list').annotations, { readOnlyHint: true })
   assert.deepEqual(byName.get('darpan_run_start').annotations, { readOnlyHint: false, destructiveHint: false })
-  assert.deepEqual(byName.get('darpan_script_delete').annotations, { readOnlyHint: false, destructiveHint: true })
-  assert.deepEqual(byName.get('darpan_deploy').annotations, { readOnlyHint: false, destructiveHint: true }, '--id overwrites a deployment and can switch it off')
+  assert.deepEqual(byName.get('darpan_conclusions_save').annotations, { readOnlyHint: false, destructiveHint: true }, 'replaces a whole cause tree')
   assert.deepEqual(byName.get('darpan_call').annotations, { readOnlyHint: false, destructiveHint: true }, 'call can reach any allowlisted write')
 })
 
@@ -97,12 +96,11 @@ test('no MCP tool schema exposes a cliOnly property, and a call that passes one 
       assert.equal((tool.inputSchema.required ?? []).includes(prop), false)
     }
   }
-  assert.ok(checked >= 3)
-  assert.ok('bodyText' in (byName.get('darpan_script_run') as any).inputSchema.properties)
-  assert.ok('rowsJson' in (byName.get('darpan_script_run') as any).inputSchema.properties)
-  const secret = join(dir, 'script.js')
+  assert.ok(checked >= 1)
+  assert.ok('tree' in (byName.get('darpan_conclusions_save') as any).inputSchema.properties)
+  const secret = join(dir, 'tree.json')
   writeFileSync(secret, 'SECRET-BODY')
-  const r = await serve([call(2, 'darpan_script_run', { saved: 'x', body: secret, sample: true }), call(3, 'darpan_script_save', { name: 'n', body: secret })], cfg)
+  const r = await serve([call(2, 'darpan_conclusions_save', { savedRunId: 'RS_1', file: secret })], cfg)
   for (const reply of r.replies) {
     assert.equal(reply.result.isError, true)
     assert.match(JSON.parse(reply.result.content[0].text).error, /local file/)
