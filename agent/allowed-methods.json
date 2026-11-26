@@ -3245,7 +3245,7 @@
   },
   {
     "method": "facade.AgentChangeFacadeServices.get#AuditChangeProposal",
-    "description": "DAR-CLI-008: one of the active tenant's audit change proposals as a person reviews it: before and after, the backtest against the last run, unconfirmed values, and the planHash apply#AuditChange needs.",
+    "description": "DAR-CLI-008: one of the active tenant's audit change proposals as a person reviews it (editors and admins, who are the only roles that reach proposals in the app): before and after, the backtest against the last run, unconfirmed values, and the planHash apply#AuditChange needs.",
     "writes": false,
     "inputs": [
       {
@@ -3256,7 +3256,7 @@
   },
   {
     "method": "facade.AgentChangeFacadeServices.list#AuditChangeProposals",
-    "description": "DAR-CLI-008: the active tenant's audit change proposals, newest first, at most 100, without before/after.",
+    "description": "DAR-CLI-008: the active tenant's audit change proposals, newest first, at most 100, without before/after. Editors and admins only, as in the app.",
     "writes": false,
     "inputs": [
       {
@@ -3320,122 +3320,64 @@
     ]
   },
   {
-    "method": "facade.LookupFacadeServices.delete#TenantLookupLink",
-    "description": "Removes the tenant's own link or its override.",
-    "writes": true,
-    "inputs": [
-      {
-        "name": "linkId",
-        "required": true
-      }
-    ]
-  },
-  {
-    "method": "facade.LookupFacadeServices.delete#TenantLookupRead",
-    "description": "Removes the tenant's own read or its override (the product read, if any, applies again).",
-    "writes": true,
-    "inputs": [
-      {
-        "name": "readId",
-        "required": true
-      }
-    ]
-  },
-  {
-    "method": "facade.LookupFacadeServices.get#LookupCatalog",
-    "description": "The reads (without their templates) and links the active tenant's lookups use, its own rows merged in.",
-    "writes": false,
-    "inputs": []
-  },
-  {
     "method": "facade.LookupFacadeServices.lookup#Order",
-    "description": "Finds an order id (a Shopify id or name, a HotWax order or external id, a NetSuite number or id, or any id a tenant read takes) in every connected system and follows the order through Shopify, HotWax and NetSuite, with its open findings. Every read is a read-only fresh query on the tenant's own connection. Order facts by default; customer name, email, phone and address only with all.",
+    "description": "Answers an id (a Shopify order id or name, a HotWax order or return id, a NetSuite number, any spelling) from what Darpan already holds: the ID index's records that carry it, the records they connect to, and the tenant's open findings on any of them. Calls no connected system; an id no Darpan read has seen yet comes back notSeen.",
     "writes": false,
     "inputs": [
       {
         "name": "value",
         "required": true
-      },
-      {
-        "name": "all",
-        "required": false
       }
     ]
   },
   {
-    "method": "facade.LookupFacadeServices.save#TenantLookupLink",
-    "description": "Adds a tenant link (a join key), or overrides a product link with the same linkId.",
+    "method": "facade.IdIndexFacadeServices.delete#TenantIdIndexField",
+    "description": "Removes the tenant's own ID field or its override (the product field, if any, applies again). The system's kept copies are indexed again by the nightly catch-up.",
     "writes": true,
     "inputs": [
       {
-        "name": "linkId",
+        "name": "systemEnumId",
         "required": true
       },
       {
-        "name": "fromReadId",
-        "required": false
-      },
-      {
-        "name": "fromField",
-        "required": false
-      },
-      {
-        "name": "toReadId",
-        "required": false
-      },
-      {
-        "name": "isActive",
-        "required": false
-      },
-      {
-        "name": "description",
-        "required": false
+        "name": "fieldId",
+        "required": true
       }
     ]
   },
   {
-    "method": "facade.LookupFacadeServices.save#TenantLookupRead",
-    "description": "Adds a tenant read, or overrides a product read with the same readId (blank fields keep the product's). A template must be read-only for its system (SuiteQL SELECT with {value}; a GraphQL query taking $value).",
+    "method": "facade.IdIndexFacadeServices.get#IdIndexStatus",
+    "description": "How current the active tenant's ID index is: one row per kept copy of a system it reads (indexed or behind, last indexed, last failure), and the tenant's row count. Runs' own extracts are indexed as they finish.",
+    "writes": false,
+    "inputs": []
+  },
+  {
+    "method": "facade.IdIndexFacadeServices.save#TenantIdIndexField",
+    "description": "Adds a tenant ID field, or overrides a product field with the same fieldId (blank fields keep the product's). The system must be one the index reads; a new field needs a path and a role. A path must be plain (name.name, lists as name[*]); one that looks like a customer detail (email, phone, address, names ...) is refused: the index keeps identifiers only.",
     "writes": true,
     "inputs": [
       {
-        "name": "readId",
+        "name": "systemEnumId",
         "required": true
       },
       {
-        "name": "systemCode",
-        "required": false
+        "name": "fieldId",
+        "required": true
       },
       {
         "name": "recordKind",
         "required": false
       },
       {
-        "name": "keyField",
+        "name": "fieldPath",
         "required": false
       },
       {
-        "name": "queryTemplate",
+        "name": "role",
         "required": false
       },
       {
-        "name": "valueShape",
-        "required": false
-      },
-      {
-        "name": "valueFormat",
-        "required": false
-      },
-      {
-        "name": "recordsAt",
-        "required": false
-      },
-      {
-        "name": "fieldsDefault",
-        "required": false
-      },
-      {
-        "name": "isFind",
+        "name": "refRecordKind",
         "required": false
       },
       {
@@ -3443,12 +3385,19 @@
         "required": false
       },
       {
-        "name": "sequenceNum",
-        "required": false
-      },
-      {
         "name": "description",
         "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.IdIndexFacadeServices.search#RecordIds",
+    "description": "Finds an id (any spelling: #GOR123, gor123, a Shopify gid) in the active tenant's ID index with one read, then follows the records it belongs to through the values they share (a HotWax order to its Shopify order, a NetSuite sales order to its fulfillments) up to 4 hops and 200 records. Identifiers only: no customer details or order contents.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "value",
+        "required": true
       }
     ]
   }

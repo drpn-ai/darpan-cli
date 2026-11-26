@@ -22,20 +22,18 @@ async function go(argv: string[], handlers: Record<string, any> = {}) {
   return { ...out, ...backend }
 }
 
-test('lookup sends the value and prints the chain; order facts only by default', async () => {
+test('lookup sends the value and prints what Darpan holds', async () => {
   const r = await go(['lookup', '19014662389929'], { [LOOKUP]: () => ({ ok: true, lookup: answer }) })
   assert.equal(r.exitCode, 0, r.stderr)
-  assert.deepEqual(r.requests[0]!.params, { value: '19014662389929', all: false })
+  assert.deepEqual(r.requests[0]!.params, { value: '19014662389929' })
   assert.deepEqual(JSON.parse(r.stdout), answer)
-  assert.equal(r.stderr, '', 'no reminder without --all')
+  assert.equal(r.stderr, '')
 })
 
-test('lookup --all asks for every field and reminds that customer details now sit in the transcript', async () => {
-  const r = await go(['lookup', '#GOR197527791', '--all'], { [LOOKUP]: () => ({ ok: true, lookup: answer }) })
+test('lookup says on stderr when no Darpan run has read the id', async () => {
+  const r = await go(['lookup', '5550001'], { [LOOKUP]: () => ({ ok: true, lookup: { value: '5550001', records: [], findings: [], notSeen: true } }) })
   assert.equal(r.exitCode, 0)
-  assert.deepEqual(r.requests[0]!.params, { value: '#GOR197527791', all: true })
-  assert.match(r.stderr, /customer details/i)
-  assert.match(r.stderr, /transcript/i)
+  assert.match(r.stderr, /no darpan run has read this id/i)
 })
 
 test('lookup needs a value; it is a read-only MCP tool; its method is allowlisted', async () => {
@@ -46,8 +44,28 @@ test('lookup needs a value; it is a read-only MCP tool; its method is allowliste
   assert.ok(loadAllowedMethods().some((m) => m.method === LOOKUP && m.writes === false))
 })
 
-test('the guide starts the explain flow with lookup and keeps --all for when the person asks', async () => {
+
+// DAR-BE-374: lookup --status and the guide.
+const STATUS = 'facade.IdIndexFacadeServices.get#IdIndexStatus'
+
+test('lookup --status lists each kept copy and names one the index is behind, with no value and no --yes', async () => {
+  const status = { connections: [
+    { connectionId: 'SHOP', systemEnumId: 'SHOPIFY', lastStatus: 'OK', behind: false, stale: false },
+    { connectionId: 'OMS', systemEnumId: 'OMS_GQL', lastStatus: 'FAILED', lastError: 'Spark said no', behind: true, stale: true },
+  ], rowCount: 12 }
+  const r = await go(['lookup', '--status'], { [STATUS]: () => ({ ok: true, ...status }) })
+  assert.equal(r.exitCode, 0, r.stderr)
+  assert.equal(r.requests[0]!.method, STATUS)
+  assert.deepEqual(JSON.parse(r.stdout), status)
+  assert.match(r.stderr, /OMS_GQL OMS: the ID index is behind.*Spark said no/)
+  assert.ok(loadAllowedMethods().some((m) => m.method === STATUS && m.writes === false))
+})
+
+test('the guide says lookup answers from what Darpan holds and calls no connected system', async () => {
   const { GUIDE } = await import('../guide.ts')
-  assert.match(GUIDE, /lookup <order id>/)
-  assert.match(GUIDE, /--all only when the person asks/)
+  const text = Array.isArray(GUIDE) ? GUIDE.join('\n') : String(GUIDE)
+  assert.match(text, /ID index/)
+  assert.match(text, /calls no connected system/)
+  assert.match(text, /lookup --status/)
+  assert.doesNotMatch(text, /--all/)
 })

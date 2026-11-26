@@ -1590,26 +1590,33 @@ const findingsLookalikes: Command = {
 // ---------------------------------------------------------------------------------------------------------------
 const lookup: Command = {
   name: 'lookup',
-  summary: 'lookup <id> [--all]                     follow an order through Shopify, HotWax and NetSuite',
+  summary: 'lookup <id> | lookup --status          find an id in what Darpan already holds (ID index + findings)',
   description:
-    'Finds an order id as the person gave it (a Shopify order id, a HotWax order id or name with or without #, a NetSuite sales order number, external id or reference, or any id the tenant has a read for) on every connected system and store, then follows the order: HotWax order with its payment preferences, ship groups, items and returns, the Shopify order with its lines and transactions, the NetSuite sales order with its fulfillments, invoices, return authorizations and credit memos, and the order\'s open findings. Every read is a read-only fresh query on your own connections (at most 30 per lookup). Order facts by default; --all adds customer details, which then sit in this conversation\'s transcript, so use it only when the person asks.',
+    'Finds an id as the person gave it (a Shopify order id or name, a refund or return id, a HotWax order or return id, a NetSuite number, any spelling) in what Darpan already holds: the ID index, built from every run and kept-copy read, with the records it belongs to in each system and how they connect, plus the open findings on any of them. It calls no connected system. An id no Darpan run has read yet comes back notSeen; to read fresh data, re-check the finding or statement. lookup --status shows, per kept copy, whether the index is current.',
   input: {
     type: 'object',
     properties: {
       value: { type: 'string', description: 'The id as the person gave it, e.g. 19014662389929, #GOR197527791, SO7482568' },
-      all: { type: 'boolean', description: 'Every field, customer details included (only when the person asks)' },
+      status: { type: 'boolean', description: 'Whether the ID index is current for each kept copy, instead of a lookup' },
     },
-    required: ['value'],
   },
   tenant: 'required',
   positional: ['value'],
   async run(ctx, args) {
+    if (args.status === true) {
+      const got = await ctx.session.call<Row>('facade.IdIndexFacadeServices.get#IdIndexStatus', {})
+      const connections = (got.connections ?? []) as Row[]
+      for (const c of connections.filter((c) => c.stale)) {
+        ctx.log?.(`${c.systemEnumId} ${c.connectionId}: the ID index is behind this kept copy (${c.lastStatus ?? 'not indexed'}${c.lastError ? `: ${c.lastError}` : ''}).`)
+      }
+      return { connections, rowCount: got.rowCount }
+    }
     const value = text(args.value)
     if (!value || args.value === true) throw usageError('lookup needs the id to look up.', 'example: darpan lookup 19014662389929')
-    const all = args.all === true
-    if (all) ctx.log?.('Customer details are in this answer, and now in this conversation\'s transcript.')
-    const got = await ctx.session.call<Row>('facade.LookupFacadeServices.lookup#Order', { value, all })
-    return got.lookup ?? {}
+    const got = await ctx.session.call<Row>('facade.LookupFacadeServices.lookup#Order', { value })
+    const found = (got.lookup ?? {}) as Row
+    if (found.notSeen) ctx.log?.('No Darpan run has read this id yet.')
+    return found
   },
 }
 
