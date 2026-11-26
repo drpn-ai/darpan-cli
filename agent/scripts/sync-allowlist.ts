@@ -15,7 +15,7 @@ export interface AllowedMethod {
 }
 
 /** Verbs that only read. Any other verb (save, run, apply, an unknown one) counts as a write, so a new verb fails safe. */
-const READ_VERBS = new Set(['get', 'list', 'search', 'preview', 'test', 'find', 'inspect', 'describe', 'validate', 'infer', 'flatten'])
+const READ_VERBS = new Set(['get', 'list', 'search', 'preview', 'test', 'find', 'inspect', 'describe', 'validate', 'infer', 'flatten', 'lookup'])
 
 /** Methods whose verb says run but that only read: the fresh read-only queries (`darpan query run`). */
 const READ_METHODS = new Set(['facade.NetSuiteQueryFacadeServices.run#NsSuiteQlAgentQuery', 'facade.HotWaxOmsFacadeServices.run#OmsGraphqlAgentQuery',

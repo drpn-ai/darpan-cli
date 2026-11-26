@@ -16,7 +16,7 @@ const EXCLUDED = new Set(['login', 'logout', 'tenant use'])
  *  sits in exactly one set (a test enforces it), so a new command cannot slip in looking read-only. */
 export const READ_ONLY = new Set(['whoami', 'tenants', 'api', 'systems', 'describe', 'runs', 'run status', 'run wait', 'result',
   'audits', 'report', 'findings list', 'findings show', 'findings by-order', 'audit progress', 'audit settings',
-  'audit extracts', 'conclusions show', 'month export', 'query run', 'change list', 'change show', 'findings lookalikes'])
+  'audit extracts', 'conclusions show', 'month export', 'query run', 'change list', 'change show', 'findings lookalikes', 'lookup'])
 /** Adds or acts without overwriting or removing anything: starts a run, re-checks a finding, adds a cause code. */
 export const ADDITIVE = new Set(['run start', 'findings recheck', 'conclusions code', 'cause add', 'cause expect', 'cause propose', 'change plan'])
 /** Can overwrite or remove: `call` reaches any allowlisted method, writes included (DAR-CLI-008: every tenant-app edit

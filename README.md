@@ -71,6 +71,7 @@ darpan guide                         # the usual path, limits and roles
 | `darpan audit settings` / `audit progress` | An audit's statements, checks and schedule; what its checks are doing while it runs |
 | `darpan audit extracts --check C --period P [--system S]` | What each system's read wrote for a check on one morning; `--system` returns that file |
 | `darpan month export --month YYYY-MM` | A month's open findings as one JSON document |
+| `darpan lookup <id> [--all]` | Follow an order id through Shopify, HotWax and NetSuite, with its open findings; order facts by default, customer details with `--all` |
 | `darpan query run --connection <id>` | A fresh read-only SuiteQL or GraphQL question to one system (200 rows by default, 2,000 at most) |
 | `darpan conclusions show\|save\|code` / `automation sync <id>` | A run's cause tree: read it, replace it (preview first, `--yes` saves), add a cause code; copy a run's sources and filters onto its automation |
 | `darpan cause add` / `cause expect` / `cause propose` | Propose a cause for a finding (from the person's own words), mark causes expected, or any other audit change; planned and backtested on the server, nothing changes yet |

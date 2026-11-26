@@ -39,7 +39,7 @@ test('buildAllowedMethods takes descriptions from the contract where present', (
 })
 
 test('isWriteMethod: only read verbs are reads; an unknown verb counts as a write (DAR-CLI-008)', () => {
-  for (const read of ['get', 'list', 'search', 'preview', 'test', 'find', 'inspect', 'describe', 'validate', 'infer', 'flatten']) {
+  for (const read of ['get', 'list', 'search', 'preview', 'test', 'find', 'inspect', 'describe', 'validate', 'infer', 'flatten', 'lookup']) {
     assert.equal(isWriteMethod(`facade.X.${read}#Y`), false, read)
   }
   for (const write of ['save', 'delete', 'create', 'run', 'retry', 'restore', 'apply', 'acknowledge', 'frobnicate']) {

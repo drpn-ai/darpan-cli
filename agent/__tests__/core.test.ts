@@ -379,7 +379,7 @@ test('final review Important 1: run starters wait past the 300 s load balancer; 
   const { requestTimeoutMs } = await import('../rpc.ts')
   for (const m of ['facade.ReconciliationFacadeServices.run#SavedRunDiff', 'facade.ReconciliationFacadeServices.run#Reconciliation', 'facade.ReconciliationFacadeServices.run#AutomationNow',
     'facade.AuditFacadeServices.run#Audit', 'facade.AuditFacadeServices.retry#AuditCheck', 'facade.TenantScriptFacadeServices.run#TenantQuery',
-    'facade.TenantScriptFacadeServices.run#TenantQuerySchedule', 'facade.AuditFacadeServices.verify#AuditFindings']) {
+    'facade.TenantScriptFacadeServices.run#TenantQuerySchedule', 'facade.AuditFacadeServices.verify#AuditFindings', 'facade.LookupFacadeServices.lookup#Order']) {
     assert.ok(requestTimeoutMs(m) >= 300_000, m)
   }
   for (const m of ['facade.NetSuiteQueryFacadeServices.run#NsSuiteQlAgentQuery', 'facade.HotWaxOmsFacadeServices.run#OmsGraphqlAgentQuery',

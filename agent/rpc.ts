@@ -38,7 +38,9 @@ const REQUEST_TIMEOUT_MS = 120_000
 export const RUN_REQUEST_TIMEOUT_MS = 330_000
 const RUN_STARTERS = new Set(['run#SavedRunDiff', 'run#Reconciliation', 'run#AutomationNow', 'run#Audit', 'retry#AuditCheck', 'run#TenantQuery',
   // a send that timed out on our side may already have posted; waiting longer keeps an agent from posting twice
-  'run#TenantQuerySchedule', 'verify#AuditFindings'])
+  'run#TenantQuerySchedule', 'verify#AuditFindings',
+  // DAR-CLI-008: a lookup reads up to its time limit (at most 240 s) plus one last read
+  'lookup#Order'])
 
 /** How long the CLI waits for one method's answer. */
 export function requestTimeoutMs(method: string): number {

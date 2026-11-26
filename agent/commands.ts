@@ -1585,12 +1585,40 @@ const findingsLookalikes: Command = {
   },
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// DAR-CLI-008 part 3: follow one order through every connected system.
+// ---------------------------------------------------------------------------------------------------------------
+const lookup: Command = {
+  name: 'lookup',
+  summary: 'lookup <id> [--all]                     follow an order through Shopify, HotWax and NetSuite',
+  description:
+    'Finds an order id as the person gave it (a Shopify order id, a HotWax order id or name with or without #, a NetSuite sales order number, external id or reference, or any id the tenant has a read for) on every connected system and store, then follows the order: HotWax order with its payment preferences, ship groups, items and returns, the Shopify order with its lines and transactions, the NetSuite sales order with its fulfillments, invoices, return authorizations and credit memos, and the order\'s open findings. Every read is a read-only fresh query on your own connections (at most 30 per lookup). Order facts by default; --all adds customer details, which then sit in this conversation\'s transcript, so use it only when the person asks.',
+  input: {
+    type: 'object',
+    properties: {
+      value: { type: 'string', description: 'The id as the person gave it, e.g. 19014662389929, #GOR197527791, SO7482568' },
+      all: { type: 'boolean', description: 'Every field, customer details included (only when the person asks)' },
+    },
+    required: ['value'],
+  },
+  tenant: 'required',
+  positional: ['value'],
+  async run(ctx, args) {
+    const value = text(args.value)
+    if (!value || args.value === true) throw usageError('lookup needs the id to look up.', 'example: darpan lookup 19014662389929')
+    const all = args.all === true
+    if (all) ctx.log?.('Customer details are in this answer, and now in this conversation\'s transcript.')
+    const got = await ctx.session.call<Row>('facade.LookupFacadeServices.lookup#Order', { value, all })
+    return got.lookup ?? {}
+  },
+}
+
 export const COMMANDS: Command[] = [
   login, logout, whoami, tenants, tenantUse, api, call,
   systems, describe, runs, runStart, runStatusCommand, runWait, result, audits, report, findingsList, findingsShow, findingsByOrder, findingsRecheck, monthExport,
   auditProgress, auditSettings, auditExtracts,
   conclusionsShow, conclusionsSave, conclusionsCode, automationSync, configRestore,
-  causeAdd, causeExpect, causePropose, changeList, changeShow, changePlan, changeApply, changeReject, changeRevert, findingsLookalikes,
+  lookup, causeAdd, causeExpect, causePropose, changeList, changeShow, changePlan, changeApply, changeReject, changeRevert, findingsLookalikes,
   queryRun,
 ]
 

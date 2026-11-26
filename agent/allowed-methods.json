@@ -3318,5 +3318,138 @@
         "required": false
       }
     ]
+  },
+  {
+    "method": "facade.LookupFacadeServices.delete#TenantLookupLink",
+    "description": "Removes the tenant's own link or its override.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "linkId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.LookupFacadeServices.delete#TenantLookupRead",
+    "description": "Removes the tenant's own read or its override (the product read, if any, applies again).",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "readId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.LookupFacadeServices.get#LookupCatalog",
+    "description": "The reads (without their templates) and links the active tenant's lookups use, its own rows merged in.",
+    "writes": false,
+    "inputs": []
+  },
+  {
+    "method": "facade.LookupFacadeServices.lookup#Order",
+    "description": "Finds an order id (a Shopify id or name, a HotWax order or external id, a NetSuite number or id, or any id a tenant read takes) in every connected system and follows the order through Shopify, HotWax and NetSuite, with its open findings. Every read is a read-only fresh query on the tenant's own connection. Order facts by default; customer name, email, phone and address only with all.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "value",
+        "required": true
+      },
+      {
+        "name": "all",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.LookupFacadeServices.save#TenantLookupLink",
+    "description": "Adds a tenant link (a join key), or overrides a product link with the same linkId.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "linkId",
+        "required": true
+      },
+      {
+        "name": "fromReadId",
+        "required": false
+      },
+      {
+        "name": "fromField",
+        "required": false
+      },
+      {
+        "name": "toReadId",
+        "required": false
+      },
+      {
+        "name": "isActive",
+        "required": false
+      },
+      {
+        "name": "description",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.LookupFacadeServices.save#TenantLookupRead",
+    "description": "Adds a tenant read, or overrides a product read with the same readId (blank fields keep the product's). A template must be read-only for its system (SuiteQL SELECT with {value}; a GraphQL query taking $value).",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "readId",
+        "required": true
+      },
+      {
+        "name": "systemCode",
+        "required": false
+      },
+      {
+        "name": "recordKind",
+        "required": false
+      },
+      {
+        "name": "keyField",
+        "required": false
+      },
+      {
+        "name": "queryTemplate",
+        "required": false
+      },
+      {
+        "name": "valueShape",
+        "required": false
+      },
+      {
+        "name": "valueFormat",
+        "required": false
+      },
+      {
+        "name": "recordsAt",
+        "required": false
+      },
+      {
+        "name": "fieldsDefault",
+        "required": false
+      },
+      {
+        "name": "isFind",
+        "required": false
+      },
+      {
+        "name": "isActive",
+        "required": false
+      },
+      {
+        "name": "sequenceNum",
+        "required": false
+      },
+      {
+        "name": "description",
+        "required": false
+      }
+    ]
   }
 ]
