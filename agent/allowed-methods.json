@@ -1428,6 +1428,10 @@
       {
         "name": "planHash",
         "required": true
+      },
+      {
+        "name": "confirmedIds",
+        "required": false
       }
     ]
   },
@@ -3235,6 +3239,82 @@
     "inputs": [
       {
         "name": "pinnedQueryIds",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.AgentChangeFacadeServices.get#AuditChangeProposal",
+    "description": "DAR-CLI-008: one of the active tenant's audit change proposals as a person reviews it: before and after, the backtest against the last run, unconfirmed values, and the planHash apply#AuditChange needs.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "proposalId",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.AgentChangeFacadeServices.list#AuditChangeProposals",
+    "description": "DAR-CLI-008: the active tenant's audit change proposals, newest first, at most 100, without before/after.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "status",
+        "required": false
+      },
+      {
+        "name": "origin",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.AgentChangeFacadeServices.propose#AuditChange",
+    "description": "DAR-CLI-008: a person proposes a change to the audit brain through their own AI and the CLI (no agent conversation). The person's own words and the finding they name vouch for the proposal's values; values neither vouches for come back as unconfirmedIds, and apply#AuditChange needs them named back as confirmedIds. Planned and backtested like an agent's proposal. Refused without write access on the active tenant.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "kind",
+        "required": true
+      },
+      {
+        "name": "target",
+        "required": true
+      },
+      {
+        "name": "after",
+        "required": true
+      },
+      {
+        "name": "personWords",
+        "required": true
+      },
+      {
+        "name": "reasonText",
+        "required": false
+      },
+      {
+        "name": "findingId",
+        "required": false
+      },
+      {
+        "name": "evidence",
+        "required": false
+      }
+    ]
+  },
+  {
+    "method": "facade.AgentReadFacadeServices.find#AuditFindingLookalikes",
+    "description": "Findings of the same check as one finding: sameCause (same conclusion, any state) and controls (a different conclusion, any state), each {findingId, recordKey, state, conclusionCode, statementCode, conditionValues}, plus counts of every other finding of the check by conclusion code (none when blank) and by state. Conditions equal on every row are left out of conditionValues.",
+    "writes": false,
+    "inputs": [
+      {
+        "name": "findingId",
+        "required": true
+      },
+      {
+        "name": "limit",
         "required": false
       }
     ]

@@ -848,17 +848,30 @@ const findingsByOrder: Command = {
 
 const findingsRecheck: Command = {
   name: 'findings recheck',
-  summary: 'findings recheck <id>                   re-check one finding now',
+  summary: 'findings recheck <id> | --audit <id> --period <p> [--statement <s>]  re-check one finding, or every open one',
   description:
-    'Re-checks one finding\'s record now, as the audit page\'s Re-check does: its check runs for that record only, each system read by key, and the finding closes if the problem is gone or is refreshed with today\'s cause. Runs in the background; `findings show` has the outcome once status.lastChecked moves. Needs user, editor or admin; writes nothing to NetSuite, HotWax OMS or Shopify.',
+    'With a finding id: re-checks that finding\'s record now, as the audit page\'s Re-check does: its check runs for that record only, each system read by key, and the finding closes if the problem is gone or is refreshed with today\'s cause. With --audit and --period: re-checks every open finding of one statement (--statement) or of the whole audit, as "Re-check all" does — run it after applying a cause so its look-alikes move under it. Runs in the background; `findings show` / `report` have the outcome. Needs user, editor or admin; writes nothing to NetSuite, HotWax OMS or Shopify.',
   input: {
     type: 'object',
-    properties: { id: { type: 'string', description: 'Finding id, such as F-20790' } },
-    required: ['id'],
+    properties: {
+      id: { type: 'string', description: 'Finding id, such as F-20790' },
+      audit: { type: 'string', description: 'The audit (re-check all), e.g. RAILS_MC' },
+      period: { type: 'string', description: 'The report\'s period, e.g. 2026-11 (re-check all)' },
+      statement: { type: 'string', description: 'One statement\'s code, e.g. R10 (re-check all); blank = the whole audit' },
+    },
   },
   tenant: 'required',
   positional: ['id'],
   async run(ctx, args) {
+    if (args.audit !== undefined || args.period !== undefined) {
+      const audit = text(args.audit), period = text(args.period)
+      if (!audit || !period || args.audit === true || args.period === true) throw usageError('findings recheck --audit needs --period too.', 'example: --audit RAILS_MC --period 2026-11 --statement R10')
+      const params: Row = { audit, period }
+      const statement = text(args.statement)
+      if (statement && args.statement !== true) params.statement = statement
+      const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>(`${AUDIT}.verify#AuditFindings`, params)
+      return { ...rest, next: `darpan report --audit ${audit}  (findings move as the runs finish)` }
+    }
     const id = findingId(args.id, 'findings recheck')
     const started = await ctx.session.call<Row>(`${AUDIT}.verify#AuditFinding`, { findingId: id })
     return { findingId: id, submitted: started.submitted === true, next: `darpan findings show ${id}  (status.lastChecked moves when the re-check is done)` }
@@ -1283,11 +1296,301 @@ const configRestore: Command = {
   },
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// DAR-CLI-008 part 2: a person explains a finding or marks a cause expected through their own AI. Every cause command only
+// drafts a proposal (planned and backtested on the server against the last run); `change apply` makes it, with --yes and
+// the planHash the person saw, naming back any value the server could not trace to the person's words or the finding.
+// ---------------------------------------------------------------------------------------------------------------
+const CHANGE = 'facade.AgentChangeFacadeServices'
+const WORDS_PROP = { type: 'string', description: 'What the person said, verbatim (never your summary): the proposal\'s values are checked against these words' } as const
+const FINDING_PROP = { type: 'string', description: 'The finding being explained, e.g. F-20790: its record key and codes vouch for values too' } as const
+const REASON_PROP = { type: 'string', description: 'Why, in a sentence (optional)' } as const
+
+function proposalCommon(args: Record<string, unknown>, command: string): Row {
+  const words = text(args.words)
+  if (!words || args.words === true) throw usageError(`${command} needs --words: what the person said, verbatim.`, 'example: --words "not paid yet, the OPP is missing"')
+  const out: Row = { personWords: words }
+  const finding = text(args.finding)
+  if (finding && args.finding !== true) out.findingId = finding
+  const reason = text(args.reason)
+  if (reason && args.reason !== true) out.reasonText = reason
+  return out
+}
+
+async function propose(ctx: Ctx, kind: string, target: Row, after: Row, common: Row) {
+  const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>(`${CHANGE}.propose#AuditChange`, { kind, target, after, ...common })
+  return { ...rest, next: `darpan change show ${String(rest.proposalId)}  — show the person the before and after, how many findings move, and any unconfirmed values; apply only on their yes` }
+}
+
+const required = (args: Record<string, unknown>, key: string, command: string, example: string): string => {
+  const value = text(args[key])
+  if (!value || args[key] === true) throw usageError(`${command} needs --${key}.`, example)
+  return value
+}
+
+/** "field OPERATOR [value]" joined by ";" — the operator is upper-case, the value is the rest (IN/NOT_IN: commas). */
+export function parseConditions(raw: unknown): Row[] {
+  if (raw === undefined) return []
+  const parts = raw === true ? [] : String(raw).split(';').map((part) => part.trim()).filter(Boolean)
+  if (!parts.length) throw usageError('--when is empty.', 'give at least one "<field> <OPERATOR> [value]", or leave --when out for a cause with no conditions')
+  return parts.map((part) => {
+    const m = /^(\S+)\s+([A-Z][A-Z_]*)(?:\s+(.+))?$/.exec(part)
+    if (!m) throw usageError(`Cannot read the condition "${part}".`, 'write each as "<field> <OPERATOR> [value]", e.g. "paymentStatus IN NOT_PAID,PENDING"; join several with ";"')
+    const condition: Row = { fieldExpression: m[1], operator: m[2] }
+    if (m[3] !== undefined && m[3].trim()) condition.checkValue = m[3].trim()
+    return condition
+  })
+}
+
+const csv = (value: unknown): string[] => (text(value) ?? '').split(',').map((v) => v.trim()).filter(Boolean)
+
+/** --confirm: a JSON list (for values with commas or spaces) or a comma-separated list. */
+function confirmList(value: unknown): string[] {
+  const raw = text(value)
+  if (!raw || value === true) return []
+  if (raw.trim().startsWith('[')) {
+    let parsed: unknown
+    try { parsed = JSON.parse(raw) } catch { throw usageError('--confirm is not a valid JSON list.', 'example: --confirm \'["NOT PAID","A,B"]\'') }
+    if (!Array.isArray(parsed)) throw usageError('--confirm must be a list.', 'example: --confirm \'["M1","M2"]\'')
+    return parsed.map(String)
+  }
+  return csv(raw)
+}
+
+/** The --confirm argument to suggest, shell-quoted; a JSON list when a value holds a comma, a space or a quote. */
+function confirmArg(values: string[]): string {
+  const plain = values.every((v) => /^[^,\s'"]+$/.test(v))
+  const body = plain ? values.join(',') : JSON.stringify(values)
+  return `--confirm '${body.replace(/'/g, "'\\''")}'`
+}
+
+const causeAdd: Command = {
+  name: 'cause add',
+  summary: 'cause add --run <savedRunId> --code <code> --when "<field> <OP> [value]" --words "..."  propose a new cause',
+  description:
+    'Proposes a cause on a run: when its conditions hold, a finding gets this cause (its conclusion code; make a new one with `conclusions code --label`). --when takes "<field> <OPERATOR> [value]", several joined by ";". The server plans it and backtests it against the last run, so `change show` says how many findings would move under it. Nothing changes until `change apply`. Needs editor or admin.',
+  input: {
+    type: 'object',
+    properties: {
+      run: { type: 'string', description: 'The savedRunId the finding\'s check reads (findings show: run.savedRunId)' },
+      code: { type: 'string', description: 'The cause\'s conclusion code, e.g. CONC_100486' },
+      when: { type: 'string', description: 'Conditions: "<field> <OPERATOR> [value]", several joined by ";"' },
+      parent: { type: 'string', description: 'A parent cause code, when this refines one' },
+      bucket: { type: 'string', description: 'The bucket the cause applies to (optional)' },
+      fix: { type: 'string', description: 'What to do about it, as the audit shows it (optional)' },
+      words: WORDS_PROP, finding: FINDING_PROP, reason: REASON_PROP,
+    },
+    required: ['run', 'code', 'words'],
+  },
+  tenant: 'required',
+  async run(ctx, args) {
+    const run = required(args, 'run', 'cause add', 'example: --run RS_100515')
+    const code = required(args, 'code', 'cause add', 'make one with `darpan conclusions code --label "..."`')
+    const conditions = parseConditions(args.when)
+    const common = proposalCommon(args, 'cause add')
+    const row: Row = { conclusionCode: code }
+    for (const [key, field] of [['parent', 'parentConclusionCode'], ['bucket', 'bucket'], ['fix', 'fixActionTemplate']] as const) {
+      const value = text(args[key])
+      if (value && args[key] !== true) row[field] = value
+    }
+    if (conditions.length) row.conditions = conditions
+    return propose(ctx, 'CONCLUSION_ROWS', { savedRunId: run }, { rows: [row] }, common)
+  },
+}
+
+const causeExpect: Command = {
+  name: 'cause expect',
+  summary: 'cause expect --audit <auditId> --check <checkCode> --codes <c1,c2> --words "..."  propose causes as expected',
+  description:
+    'Proposes marking causes (conclusion codes the check\'s run concludes) as expected: no statement counts a finding of an expected cause, so they leave the list. `change show` says which statements stop counting it and how many open findings close. Nothing changes until `change apply`. Needs editor or admin.',
+  input: {
+    type: 'object',
+    properties: {
+      audit: { type: 'string', description: 'The audit\'s id, e.g. RAILS_MC' },
+      check: { type: 'string', description: 'The check\'s code (audit settings)' },
+      codes: { type: 'string', description: 'Conclusion codes, comma-separated' },
+      words: WORDS_PROP, finding: FINDING_PROP, reason: REASON_PROP,
+    },
+    required: ['audit', 'check', 'codes', 'words'],
+  },
+  tenant: 'required',
+  async run(ctx, args) {
+    const auditId = required(args, 'audit', 'cause expect', 'example: --audit RAILS_MC')
+    const checkCode = required(args, 'check', 'cause expect', 'see `darpan audit settings`')
+    const codes = csv(args.codes)
+    if (!codes.length) throw usageError('cause expect needs --codes.', 'example: --codes CONC_100486')
+    return propose(ctx, 'EXPECTED_CAUSES', { auditId, checkCode }, { expectedCodes: codes }, proposalCommon(args, 'cause expect'))
+  },
+}
+
+const causePropose: Command = {
+  name: 'cause propose',
+  summary: 'cause propose --kind <KIND> --target <json> --after <json> --words "..."  propose any other audit change',
+  description:
+    'Proposes any audit change the in-app agent can: EXCLUSION_FILTER, STATEMENT_NARROWING, EXPECTED_CAUSES, FIX_TEXT, CONCLUSION_ROWS, AUDIT_SETTINGS, ADD_STATEMENT, ADD_CHECK, STATEMENT_EDIT or REASON_PRIORITY, with that kind\'s target and after. Prefer `cause add` and `cause expect`. Nothing changes until `change apply`. Needs editor or admin.',
+  input: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', description: 'The change kind' },
+      target: { type: 'object', description: 'What it changes, e.g. {"savedRunId":"RS_1","fileSide":"FILE_1"}' },
+      after: { type: 'object', description: 'The new value, e.g. {"filterValues":["M1"]}' },
+      words: WORDS_PROP, finding: FINDING_PROP, reason: REASON_PROP,
+    },
+    required: ['kind', 'target', 'after', 'words'],
+  },
+  tenant: 'required',
+  async run(ctx, args) {
+    const kind = required(args, 'kind', 'cause propose', 'example: --kind FIX_TEXT')
+    const isMap = (v: unknown) => typeof v === 'object' && v !== null && !Array.isArray(v)
+    if (!isMap(args.target) || !isMap(args.after)) throw usageError('cause propose needs --target and --after as JSON objects.', 'example: --target \'{"savedRunId":"RS_1"}\' --after \'{"rows":[...]}\'')
+    return propose(ctx, kind, args.target as Row, args.after as Row, proposalCommon(args, 'cause propose'))
+  },
+}
+
+const PROPOSAL_ID = { type: 'object', properties: { id: { type: 'string', description: 'A proposalId (change list)' } }, required: ['id'] } as const satisfies JsonSchemaObject
+const proposalIdOf = (value: unknown, command: string): string => {
+  const id = text(value)
+  if (!id || value === true) throw usageError(`${command} needs a proposal id.`, 'see `darpan change list`')
+  return id
+}
+
+const changeList: Command = {
+  name: 'change list',
+  summary: 'change list [--status S] [--origin O]  the tenant\'s audit change proposals',
+  description: 'Audit change proposals, newest first (at most 100): --status OPEN (drafted, planned, stale, invalid) or one status, --origin PERSON (made through the CLI) or AGENT (the in-app agent).',
+  input: { type: 'object', properties: { status: { type: 'string', description: 'OPEN, DRAFT, PLANNED, APPLIED, REJECTED, REVERTED, STALE or INVALID' }, origin: { type: 'string', description: 'PERSON or AGENT' } } },
+  tenant: 'required',
+  async run(ctx, args) {
+    const params: Row = {}
+    for (const key of ['status', 'origin']) { const v = text(args[key]); if (v && args[key] !== true) params[key] = v }
+    const got = await ctx.session.call<Row>(`${CHANGE}.list#AuditChangeProposals`, params)
+    return { proposals: got.proposals ?? [] }
+  },
+}
+
+const changeShow: Command = {
+  name: 'change show',
+  summary: 'change show <id>                        a proposal: before, after, findings moved, unconfirmed values',
+  description: 'One proposal as the person reviews it: before and after, the backtest against the last run (how many findings move), values not traced to the person\'s words or the finding (unconfirmedIds), and the planHash `change apply` needs.',
+  input: PROPOSAL_ID,
+  tenant: 'required',
+  positional: ['id'],
+  async run(ctx, args) {
+    const id = proposalIdOf(args.id, 'change show')
+    const got = await ctx.session.call<Row>(`${CHANGE}.get#AuditChangeProposal`, { proposalId: id })
+    const proposal = (got.proposal ?? {}) as Row
+    const unconfirmed = Array.isArray(proposal.unconfirmedIds) ? (proposal.unconfirmedIds as unknown[]).map(String) : []
+    let next: string
+    if (['STALE', 'INVALID', 'DRAFT'].includes(String(proposal.status))) {
+      next = `${String(proposal.statusMessage ?? `status ${String(proposal.status)}`)} Re-plan it against the current config: darpan change plan ${id}`
+    } else if (proposal.status !== 'PLANNED' || !proposal.planHash) {
+      next = `status ${String(proposal.status)}: nothing to apply`
+    } else if (unconfirmed.length && proposal.origin === 'AGENT') {
+      next = 'the in-app agent made this proposal; its unconfirmed values are confirmed in its agent conversation in the app'
+    } else {
+      const confirm = unconfirmed.length ? ` ${confirmArg(unconfirmed)}` : ''
+      next = `on the person's yes: darpan change apply ${id} --yes --plan ${String(proposal.planHash)}${confirm}${unconfirmed.length ? '  (only after they have seen those values)' : ''}`
+    }
+    return { proposal, next }
+  },
+}
+
+const changePlan: Command = {
+  name: 'change plan',
+  summary: 'change plan <id>                        re-plan a stale or invalid proposal against the current config',
+  description: 'Plans an open proposal again against the config as it is now (checked by its real save, rolled back) and backtests it, for one that went stale because the config changed or an old planHash was used. Then show it again. Needs editor or admin.',
+  input: PROPOSAL_ID,
+  tenant: 'required',
+  positional: ['id'],
+  async run(ctx, args) {
+    const id = proposalIdOf(args.id, 'change plan')
+    const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>(`${CHANGE}.plan#AuditChange`, { proposalId: id })
+    return { proposalId: id, ...rest, next: `darpan change show ${id}  — show the person the new plan before applying` }
+  },
+}
+
+const changeApply: Command = {
+  name: 'change apply',
+  summary: 'change apply <id> --yes --plan <hash> [--confirm v1,v2]  make a proposal (a config version you can revert)',
+  description:
+    'Makes a planned proposal, exactly as `change show` showed it: --plan is that planHash (a config changed since is refused as stale; show it again). --confirm names back the values `change show` listed as unconfirmed, once the person has seen them. Kept as a config version, credited to you; `change revert` undoes it. Needs editor or admin.',
+  input: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', description: 'The proposalId' },
+      yes: { type: 'boolean', description: 'Make the change' },
+      plan: { type: 'string', description: 'The planHash change show answered' },
+      confirm: { type: 'string', description: 'The unconfirmed values after the person has seen them: comma-separated, or a JSON list when a value has a comma or space' },
+    },
+    required: ['id'],
+  },
+  tenant: 'required',
+  positional: ['id'],
+  async run(ctx, args) {
+    const id = proposalIdOf(args.id, 'change apply')
+    if (args.yes !== true) throw usageError('change apply makes the change only with --yes.', `show it first: darpan change show ${id}`)
+    const plan = text(args.plan)
+    if (!plan || args.plan === true) throw usageError('change apply needs --plan <planHash> from change show.', `darpan change show ${id}`)
+    const params: Row = { proposalId: id, planHash: plan }
+    const confirmed = confirmList(args.confirm)
+    if (confirmed.length) params.confirmedIds = confirmed
+    const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>(`${CHANGE}.apply#AuditChange`, params)
+    if (rest.status !== 'APPLIED') throw new CliError(String(rest.statusMessage ?? `Proposal ${id} is ${String(rest.status)}; nothing changed.`), EXIT.failed, `darpan change show ${id}`)
+    return { ...rest, next: 're-check so findings move: darpan findings recheck --audit <id> --period <p> --statement <s>' }
+  },
+}
+
+const changeReject: Command = {
+  name: 'change reject',
+  summary: 'change reject <id> [--reason <text>]   decline a proposal',
+  description: 'Declines an open proposal; it can no longer be applied.',
+  input: { type: 'object', properties: { id: { type: 'string', description: 'The proposalId' }, reason: REASON_PROP }, required: ['id'] },
+  tenant: 'required',
+  positional: ['id'],
+  async run(ctx, args) {
+    const params: Row = { proposalId: proposalIdOf(args.id, 'change reject') }
+    const reason = text(args.reason)
+    if (reason && args.reason !== true) params.reason = reason
+    const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>(`${CHANGE}.reject#AuditChange`, params)
+    return rest
+  },
+}
+
+const changeRevert: Command = {
+  name: 'change revert',
+  summary: 'change revert <id>                      propose putting back what an applied proposal changed',
+  description: 'Makes a new planned proposal that puts back what an applied one changed. It changes nothing until you show it and `change apply` it.',
+  input: PROPOSAL_ID,
+  tenant: 'required',
+  positional: ['id'],
+  async run(ctx, args) {
+    const id = proposalIdOf(args.id, 'change revert')
+    const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>(`${CHANGE}.revert#AuditChange`, { proposalId: id })
+    return { ...rest, next: `darpan change show ${String(rest.newProposalId)}, then apply it on the person's yes` }
+  },
+}
+
+const findingsLookalikes: Command = {
+  name: 'findings lookalikes',
+  summary: 'findings lookalikes <id> [--limit N]    the check\'s other findings, by cause, with samples',
+  description: 'Counts the check\'s other findings by cause and state, and lists a few with the same cause and a few with a different one, so a cause can be checked against both before it is proposed.',
+  input: { type: 'object', properties: { id: { type: 'string', description: 'Finding id' }, limit: { type: 'number', description: 'At most this many of each list, 1 to 10' } }, required: ['id'] },
+  tenant: 'required',
+  positional: ['id'],
+  async run(ctx, args) {
+    const params: Row = { findingId: findingId(args.id, 'findings lookalikes') }
+    if (args.limit !== undefined) params.limit = Number(args.limit)
+    const { ok: _ok, messages: _messages, errors: _errors, ...rest } = await ctx.session.call<Row>('facade.AgentReadFacadeServices.find#AuditFindingLookalikes', params)
+    return rest
+  },
+}
+
 export const COMMANDS: Command[] = [
   login, logout, whoami, tenants, tenantUse, api, call,
   systems, describe, runs, runStart, runStatusCommand, runWait, result, audits, report, findingsList, findingsShow, findingsByOrder, findingsRecheck, monthExport,
   auditProgress, auditSettings, auditExtracts,
   conclusionsShow, conclusionsSave, conclusionsCode, automationSync, configRestore,
+  causeAdd, causeExpect, causePropose, changeList, changeShow, changePlan, changeApply, changeReject, changeRevert, findingsLookalikes,
   queryRun,
 ]
 

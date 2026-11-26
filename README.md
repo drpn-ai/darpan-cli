@@ -73,6 +73,10 @@ darpan guide                         # the usual path, limits and roles
 | `darpan month export --month YYYY-MM` | A month's open findings as one JSON document |
 | `darpan query run --connection <id>` | A fresh read-only SuiteQL or GraphQL question to one system (200 rows by default, 2,000 at most) |
 | `darpan conclusions show\|save\|code` / `automation sync <id>` | A run's cause tree: read it, replace it (preview first, `--yes` saves), add a cause code; copy a run's sources and filters onto its automation |
+| `darpan cause add` / `cause expect` / `cause propose` | Propose a cause for a finding (from the person's own words), mark causes expected, or any other audit change; planned and backtested on the server, nothing changes yet |
+| `darpan change list` / `change show <id>` | Proposals; one with its before and after, how many findings move, and values to confirm |
+| `darpan change apply <id> --yes --plan <hash> [--confirm …]` / `change reject` / `change revert` | Make a proposal as shown (a config version you can revert), decline it, or propose undoing it |
+| `darpan findings lookalikes <id>` / `findings recheck --audit A --period P [--statement S]` | A finding's look-alikes by cause; re-check every open finding of a statement after a change |
 | `darpan config restore <versionId> [--yes --plan <hash>]` | Put the tenant's config back to an earlier version: the preview answers a planHash, and `--yes --plan <hash>` restores exactly that plan |
 | `darpan mcp` / `darpan guide` | Serve every command as MCP tools over stdio; print the guide |
 

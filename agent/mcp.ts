@@ -16,12 +16,12 @@ const EXCLUDED = new Set(['login', 'logout', 'tenant use'])
  *  sits in exactly one set (a test enforces it), so a new command cannot slip in looking read-only. */
 export const READ_ONLY = new Set(['whoami', 'tenants', 'api', 'systems', 'describe', 'runs', 'run status', 'run wait', 'result',
   'audits', 'report', 'findings list', 'findings show', 'findings by-order', 'audit progress', 'audit settings',
-  'audit extracts', 'conclusions show', 'month export', 'query run'])
+  'audit extracts', 'conclusions show', 'month export', 'query run', 'change list', 'change show', 'findings lookalikes'])
 /** Adds or acts without overwriting or removing anything: starts a run, re-checks a finding, adds a cause code. */
-export const ADDITIVE = new Set(['run start', 'findings recheck', 'conclusions code'])
+export const ADDITIVE = new Set(['run start', 'findings recheck', 'conclusions code', 'cause add', 'cause expect', 'cause propose', 'change plan'])
 /** Can overwrite or remove: `call` reaches any allowlisted method, writes included (DAR-CLI-008: every tenant-app edit
  *  the user's role allows, each sent only with yes: true). */
-export const DESTRUCTIVE = new Set(['call', 'conclusions save', 'automation sync', 'config restore'])
+export const DESTRUCTIVE = new Set(['call', 'conclusions save', 'automation sync', 'config restore', 'change apply', 'change reject', 'change revert'])
 
 export function annotationsFor(command: Command) {
   if (READ_ONLY.has(command.name)) return { readOnlyHint: true }
