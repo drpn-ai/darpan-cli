@@ -198,7 +198,7 @@
   },
   {
     "method": "facade.AuditFacadeServices.run#Audit",
-    "description": "Play: runs every check of the audit now over the days picked, first to last inclusive (the tenant's zone), recording findings as the morning run does. Submitted to the background, one automation per run; the audit page shows the results as each finishes. Days in the period just ended record under that period (DAR-BE-178). Refused up front for days in the future or in a period ended before that.",
+    "description": "Play: runs every check of the audit (or only the checks named) now over the days picked, first to last inclusive (the tenant's zone), recording findings as the morning run does. Submitted to the background, one automation per run; the audit page shows the results as each finishes. Days in the period just ended record under that period (DAR-BE-178). Refused up front for days in the future or in a period ended before that.",
     "writes": true,
     "inputs": [
       {
@@ -215,6 +215,10 @@
       },
       {
         "name": "fullRead",
+        "required": false
+      },
+      {
+        "name": "checks",
         "required": false
       }
     ]
@@ -1570,6 +1574,21 @@
       },
       {
         "name": "since",
+        "required": true
+      }
+    ]
+  },
+  {
+    "method": "facade.AuditFacadeServices.remove#AuditCheck",
+    "description": "DAR-BE-395. Removes a check from an audit: it is unlinked from the audit's statements, so the audit no longer runs or shows it, and the automation it ran through stops unless another check still runs through it. The check's findings and history stay. Refused in words while the check has open findings, or when it is not in the audit.",
+    "writes": true,
+    "inputs": [
+      {
+        "name": "audit",
+        "required": true
+      },
+      {
+        "name": "check",
         "required": true
       }
     ]
@@ -3158,7 +3177,7 @@
   },
   {
     "method": "facade.SyncPulseFacadeServices.save#SyncPair",
-    "description": "Create or update one sync pair of the active tenant. A blank pulseEveryMinutes is pulse off and a blank chatSpaceId is no chat space (both stored null, never the old value); isActive and hourlySummary keep the stored value when omitted. One pair per automation; a pulse needs HotWax orders upstream.",
+    "description": "Create or update one sync pair of the active tenant. A blank pulseEveryMinutes is pulse off and a blank chatSpaceId is no chat space (both stored null, never the old value); isActive and hourlySummary keep the stored value when omitted. One pair per automation; a pulse needs an upstream endpoint whose connector dates its records (pulseCreatedField: HotWax or Shopify orders).",
     "writes": true,
     "inputs": [
       {
